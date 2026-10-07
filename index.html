@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Epoch Bounties</title>
+<meta name="description" content="Epoch Bounties — post and find crypto bounties, backed by X identity." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230ea5e9'/%3E%3Cpath d='M10 21V11h6.5a3.5 3.5 0 0 1 0 7H13' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<!-- Tailwind (Play CDN) — JIT compiler running in the browser, no build step. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          accent: {
+            50: "#f0f9ff", 100: "#e0f2fe", 200: "#bae6fd", 300: "#7dd3fc",
+            400: "#38bdf8", 500: "#0ea5e9", 600: "#0284c7", 700: "#0369a1",
+            800: "#075985", 900: "#0c4a6e",
+          },
+          ink: { 900: "#0f172a", 700: "#334155", 500: "#64748b", 300: "#cbd5e1", 100: "#f1f5f9" },
+        },
+        fontFamily: {
+          sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+          display: ["Lexend", "Inter", "-apple-system", "sans-serif"],
+        },
+        boxShadow: {
+          card: "0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)",
+          "card-hover": "0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.04)",
+          pop: "0 20px 60px -12px rgb(15 23 42 / 0.18)",
+        },
+        keyframes: {
+          fadeIn: { "0%": { opacity: 0 }, "100%": { opacity: 1 } },
+          slideUp: { "0%": { opacity: 0, transform: "translateY(8px)" }, "100%": { opacity: 1, transform: "translateY(0)" } },
+        },
+        animation: {
+          "fade-in": "fadeIn 0.18s ease-out",
+          "slide-up": "slideUp 0.22s cubic-bezier(0.16,1,0.3,1)",
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  body { background: #ffffff; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 999px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+
+<!-- React 18 + ReactDOM (UMD builds) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<!-- Babel Standalone: transforms the JSX below at page-load time. Fine for a
+     zero-build single file, but it does add a parse/compile cost on every
+     visit — for a high-traffic production deploy, a real build step (see the
+     Vite version of this project) will load faster. -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<!-- Supabase JS v2 (UMD build), exposes a global `supabase.createClient` -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+/* ============================================================================
+   CONFIG — fill these in with your own Supabase project values.
+   Settings -> API in your Supabase dashboard.
+   ========================================================================= */
+const SUPABASE_URL = "https://zpxnlpfihphqfsbsjehv.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpweG5scGZpaHBocWZzYnNqZWh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDIwNzAsImV4cCI6MjA5OTE3ODA3MH0.elmXx1iUD0JuiwOH7zhZkiyno3E7B5pQwPflO6RW-rE";
+
+const isConfigured =
+  SUPABASE_URL && !SUPABASE_URL.includes("YOUR_SUPABASE_URL") &&
+  SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes("YOUR_SUPABASE_ANON_KEY");
+
+const supabaseClient = isConfigured
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    })
+  : null;
+
+const BOUNTY_CATEGORIES = ["Development", "Content", "Design", "Growth", "Research", "Other"];
+
+/* ============================================================================
+   ICONS — small inline SVGs, avoids pulling in a separate icon-library CDN.
+   ========================================================================= */
+function Icon({ children, className = "h-4 w-4", ...props }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      {children}
+    </svg>
+  );
+}
+const IconPlus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>;
+const IconClose = (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Icon>;
+const IconSearch = (p) => <Icon {...p}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16" y2="16" /></Icon>;
+const IconSend = (p) => <Icon {...p}><line x1="21" y1="3" x2="10" y2="14" /><path d="M21 3 14 21l-3-7-7-3Z" /></Icon>;
+const IconLogOut = (p) => <Icon {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></Icon>;
+const IconCalendar = (p) => <Icon {...p}><rect x="3" y="5" width="18" height="16" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="16" y1="3" x2="16" y2="7" /></Icon>;
+const IconXCircle = (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" /></Icon>;
+const IconInbox = (p) => <Icon {...p}><path d="M3 10h4l2 3h6l2-3h4" /><path d="M5 4h14l2 6v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8Z" /></Icon>;
+const IconLoader = (p) => <Icon {...p}><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.9" y1="4.9" x2="7.8" y2="7.8" /><line x1="16.2" y1="16.2" x2="19.1" y2="19.1" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /></Icon>;
+const IconXMark = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="h-3.5 w-3.5" {...p}>
+    <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
+  </svg>
+);
+
+/* ============================================================================
+   TOAST SYSTEM — a small in-memory pub/sub, no external toast library needed.
+   ========================================================================= */
+let toastState = [];
+let toastListeners = [];
+function emitToasts() { toastListeners.forEach((fn) => fn(toastState)); }
+function pushToast(tone, message, description) {
+  const id = `${Date.now()}-${Math.random()}`;
+  toastState = [...toastState, { id, tone, message, description }];
+  emitToasts();
+  setTimeout(() => {
+    toastState = toastState.filter((t) => t.id !== id);
+    emitToasts();
+  }, 4200);
+}
+const toast = {
+  success: (message, opts) => pushToast("success", message, opts && opts.description),
+  error: (message, opts) => pushToast("error", message, opts && opts.description),
+  info: (message, opts) => pushToast("info", message, opts && opts.description),
+};
+
+function ToastViewport() {
+  const [toasts, setToasts] = useState(toastState);
+  useEffect(() => {
+    toastListeners.push(setToasts);
+    return () => { toastListeners = toastListeners.filter((fn) => fn !== setToasts); };
+  }, []);
+
+  const toneClasses = {
+    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    error: "border-red-200 bg-red-50 text-red-800",
+    info: "border-accent-200 bg-accent-50 text-accent-800",
+  };
+
+  return (
+    <div className="fixed top-4 left-1/2 z-[100] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4">
+      {toasts.map((t) => (
+        <div key={t.id} className={`animate-slide-up flex items-start justify-between gap-3 rounded-xl border px-4 py-3 shadow-pop ${toneClasses[t.tone]}`}>
+          <div>
+            <p className="text-sm font-medium">{t.message}</p>
+            {t.description && <p className="mt-0.5 text-xs opacity-80">{t.description}</p>}
+          </div>
+          <button
+            onClick={() => { toastState = toastState.filter((x) => x.id !== t.id); emitToasts(); }}
+            className="mt-0.5 opacity-60 hover:opacity-100"
+            aria-label="Dismiss"
+          >
+            <IconXMark />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================================
+   TIME / TELEGRAM HELPERS
+   ========================================================================= */
+function timeAgo(iso) {
+  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  const mins = Math.round(diffSec / 60);
+  const hrs = Math.round(mins / 60);
+  const days = Math.round(hrs / 24);
+  if (diffSec < 60) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hrs < 24) return `${hrs}h ago`;
+  if (days < 30) return `${days}d ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.round(months / 12)}y ago`;
+}
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+function isValidTelegramContact(raw) {
+  const v = (raw || "").trim();
+  if (!v) return false;
+  return /^@[\w]{3,32}$/.test(v) || /^(https?:\/\/)?t\.me\/[\w]{3,32}\/?$/.test(v);
+}
+function telegramHref(contact) {
+  const v = (contact || "").trim();
+  if (v.startsWith("http")) return v;
+  if (v.startsWith("@")) return `https://t.me/${v.slice(1)}`;
+  if (v.startsWith("t.me/")) return `https://${v}`;
+  return `https://t.me/${v}`;
+}
+
+/* ============================================================================
+   UI PRIMITIVES
+   ========================================================================= */
+function Button({ variant = "primary", size = "md", loading, className = "", children, disabled, ...props }) {
+  const variants = {
+    primary: "bg-accent-500 text-white hover:bg-accent-600 active:bg-accent-700 shadow-sm disabled:bg-accent-300",
+    secondary: "bg-white text-ink-900 border border-ink-300 hover:bg-ink-100 disabled:opacity-50",
+    ghost: "bg-transparent text-ink-700 hover:bg-ink-100 disabled:opacity-50",
+    danger: "bg-white text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50",
+  };
+  const sizes = {
+    sm: "text-sm px-3 py-1.5 rounded-lg gap-1.5",
+    md: "text-sm px-4 py-2.5 rounded-lg gap-2",
+    lg: "text-base px-5 py-3 rounded-xl gap-2",
+  };
+  return (
+    <button
+      disabled={disabled || loading}
+      className={`inline-flex items-center justify-center font-medium transition-colors duration-150 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      {...props}
+    >
+      {loading && <IconLoader className="h-4 w-4 animate-spin" />}
+      {children}
+    </button>
+  );
+}
+
+function Badge({ tone = "neutral", children }) {
+  const tones = {
+    open: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    closed: "bg-ink-100 text-ink-500 ring-1 ring-ink-200",
+    neutral: "bg-ink-100 text-ink-700 ring-1 ring-ink-200",
+  };
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${tones[tone]}`}>{children}</span>;
+}
+
+function Input({ label, error, hint, className = "", id, ...props }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && <label htmlFor={id} className="text-sm font-medium text-ink-700">{label}</label>}
+      <input
+        id={id}
+        className={`w-full rounded-lg border px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-500/70 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500/30 ${error ? "border-red-300 focus:border-red-400" : "border-ink-300 focus:border-accent-500"} ${className}`}
+        {...props}
+      />
+      {error ? <span className="text-xs font-medium text-red-600">{error}</span> : hint ? <span className="text-xs text-ink-500">{hint}</span> : null}
+    </div>
+  );
+}
+
+function Textarea({ label, error, id, ...props }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && <label htmlFor={id} className="text-sm font-medium text-ink-700">{label}</label>}
+      <textarea
+        id={id}
+        className={`w-full resize-none rounded-lg border px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-500/70 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500/30 ${error ? "border-red-300 focus:border-red-400" : "border-ink-300 focus:border-accent-500"}`}
+        {...props}
+      />
+      {error && <span className="text-xs font-medium text-red-600">{error}</span>}
+    </div>
+  );
+}
+
+function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = ""; };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center animate-fade-in" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className={`relative w-full ${maxWidth} bg-white sm:rounded-2xl rounded-t-2xl shadow-pop max-h-[92vh] overflow-y-auto animate-slide-up`}>
+        {title && (
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-100 bg-white/95 backdrop-blur px-5 py-4 sm:rounded-t-2xl">
+            <h2 className="font-display font-semibold text-lg text-ink-900">{title}</h2>
+            <button onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900">
+              <IconClose className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+        <div className="px-5 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   AUTH HOOK
+   NOTE: Supabase's X/Twitter provider stores profile fields under
+   session.user.user_metadata, but exact key names have shifted slightly
+   across provider versions (user_name vs preferred_username, avatar_url vs
+   picture). On your FIRST real login, check the browser console — this hook
+   logs the raw metadata once — and adjust the fallback keys below if needed.
+   ========================================================================= */
+function mapSessionToUser(session) {
+  if (!session || !session.user) return null;
+  const meta = session.user.user_metadata || {};
+  console.debug("[epoch-bounties] raw user_metadata from X OAuth:", meta);
+  return {
+    id: session.user.id,
+    username: meta.user_name || meta.preferred_username || meta.screen_name || "unknown",
+    displayName: meta.full_name || meta.name || meta.display_name || null,
+    avatarUrl: meta.avatar_url || meta.picture || meta.profile_image_url || null,
+  };
+}
+
+function useAuth() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!supabaseClient) { setLoading(false); return; }
+    let mounted = true;
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setUser(mapSessionToUser(data.session));
+      setLoading(false);
+    });
+    const { data: listener } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      setUser(mapSessionToUser(session));
+      setLoading(false);
+    });
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
+
+  const signInWithX = useCallback(async () => {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "twitter",
+      options: { redirectTo: window.location.origin + window.location.pathname },
+    });
+    if (error) throw error;
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) throw error;
+  }, []);
+
+  return { user, loading, signInWithX, signOut };
+}
+
+/* ============================================================================
+   BOUNTIES HOOK — fetch / create (optimistic) / close
+   ========================================================================= */
+function useBounties() {
+  const [bounties, setBounties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchBounties = useCallback(async () => {
+    if (!supabaseClient) return;
+    setError(null);
+    const { data, error } = await supabaseClient.from("bounties").select("*").order("created_at", { ascending: false });
+    if (error) { setError(error.message); return; }
+    setBounties(data || []);
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchBounties().finally(() => setLoading(false));
+  }, [fetchBounties]);
+
+  const createBounty = useCallback(async (input, user) => {
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticRow = {
+      id: optimisticId,
+      created_at: new Date().toISOString(),
+      title: input.title || null,
+      description: input.description,
+      prize: input.prize,
+      category: input.category,
+      deadline: input.deadline,
+      tg_contact: input.tg_contact,
+      status: "open",
+      poster_id: user.id,
+      poster_username: user.username,
+      poster_display_name: user.displayName,
+      poster_avatar_url: user.avatarUrl,
+    };
+    setBounties((prev) => [optimisticRow, ...prev]);
+
+    const { data, error } = await supabaseClient
+      .from("bounties")
+      .insert({
+        title: input.title || null,
+        description: input.description,
+        prize: input.prize,
+        category: input.category,
+        deadline: input.deadline,
+        tg_contact: input.tg_contact,
+        status: "open",
+        poster_id: user.id,
+        poster_username: user.username,
+        poster_display_name: user.displayName,
+        poster_avatar_url: user.avatarUrl,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      setBounties((prev) => prev.filter((b) => b.id !== optimisticId));
+      throw error;
+    }
+    setBounties((prev) => prev.map((b) => (b.id === optimisticId ? data : b)));
+    return data;
+  }, []);
+
+  const closeBounty = useCallback(async (bountyId) => {
+    let previous;
+    setBounties((prev) => { previous = prev; return prev.map((b) => (b.id === bountyId ? { ...b, status: "closed" } : b)); });
+    const { error } = await supabaseClient.from("bounties").update({ status: "closed" }).eq("id", bountyId);
+    if (error) { setBounties(previous); throw error; }
+  }, []);
+
+  return { bounties, loading, error, createBounty, closeBounty };
+}
+
+/* ============================================================================
+   FEATURE COMPONENTS
+   ========================================================================= */
+function Header({ user, authLoading, onSignIn, onSignOut, onPostClick }) {
+  return (
+    <header className="sticky top-0 z-30 border-b border-ink-100 bg-white/80 backdrop-blur-md">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-500 text-white font-display font-bold text-sm">E</div>
+          <span className="font-display text-lg font-semibold tracking-tight text-ink-900">Epoch Bounties</span>
+        </div>
+        <div className="flex items-center gap-2.5">
+          {!authLoading && user && (
+            <Button variant="primary" size="md" onClick={onPostClick}>
+              <IconPlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Post a bounty</span>
+              <span className="sm:hidden">Post</span>
+            </Button>
+          )}
+          {authLoading ? (
+            <div className="h-9 w-24 animate-pulse rounded-lg bg-ink-100" />
+          ) : user ? (
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 rounded-lg border border-ink-100 py-1 pl-1 pr-3 sm:flex">
+                {user.avatarUrl ? <img src={user.avatarUrl} alt={user.username} className="h-6 w-6 rounded-full object-cover" /> : <div className="h-6 w-6 rounded-full bg-ink-200" />}
+                <span className="text-sm font-medium text-ink-700">@{user.username}</span>
+              </div>
+              <Button variant="ghost" size="md" onClick={onSignOut} aria-label="Sign out">
+                <IconLogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button variant="secondary" size="md" onClick={onSignIn}>
+              <span className="font-bold">𝕏</span>
+              Sign in with X
+            </Button>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Filters({ query, onQueryChange, status, onStatusChange, sort, onSortChange }) {
+  const statusOptions = [{ value: "all", label: "All" }, { value: "open", label: "Open" }, { value: "closed", label: "Closed" }];
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative flex-1 sm:max-w-xs">
+        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500" />
+        <input
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Search bounties..."
+          className="w-full rounded-lg border border-ink-300 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-900 placeholder:text-ink-500/70 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center rounded-lg border border-ink-300 bg-white p-1">
+          {statusOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onStatusChange(opt.value)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${status === opt.value ? "bg-accent-500 text-white" : "text-ink-700 hover:bg-ink-100"}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <select
+          value={sort}
+          onChange={(e) => onSortChange(e.target.value)}
+          className="rounded-lg border border-ink-300 bg-white px-3 py-2.5 text-sm font-medium text-ink-700 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+        >
+          <option value="recent">Most recent</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function BountyCard({ bounty, onClick }) {
+  const isOpen = bounty.status === "open";
+  return (
+    <button
+      onClick={onClick}
+      className={`group relative w-full overflow-hidden rounded-xl border border-ink-100 bg-white text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover ${!isOpen ? "opacity-70" : ""}`}
+    >
+      <span className={`absolute inset-y-0 left-0 w-1 ${isOpen ? "bg-accent-500" : "bg-ink-300"}`} />
+      <div className="flex flex-col gap-3 p-4 pl-5 sm:p-5 sm:pl-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {bounty.poster_avatar_url ? <img src={bounty.poster_avatar_url} alt={bounty.poster_username} className="h-7 w-7 shrink-0 rounded-full object-cover" /> : <div className="h-7 w-7 shrink-0 rounded-full bg-ink-200" />}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-ink-900">@{bounty.poster_username}</p>
+              <p className="text-xs text-ink-500">{timeAgo(bounty.created_at)}</p>
+            </div>
+          </div>
+          <Badge tone={isOpen ? "open" : "closed"}>{isOpen ? "Open" : "Closed"}</Badge>
+        </div>
+        {bounty.title && <h3 className="font-display text-base font-semibold leading-snug text-ink-900">{bounty.title}</h3>}
+        <p className="line-clamp-2 text-sm leading-relaxed text-ink-700">{bounty.description}</p>
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="inline-flex items-center rounded-lg bg-accent-50 px-3 py-1.5 font-mono text-sm font-semibold text-accent-700 ring-1 ring-accent-100">{bounty.prize}</span>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-500 group-hover:text-accent-600">
+            <IconSend className="h-3.5 w-3.5" /> Telegram
+          </span>
+        </div>
+        {bounty.category && <div><Badge tone="neutral">{bounty.category}</Badge></div>}
+      </div>
+    </button>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-ink-100 bg-white p-5 pl-6 shadow-card">
+      <span className="absolute inset-y-0 left-0 w-1 bg-ink-100" />
+      <div className="flex items-center gap-2">
+        <div className="h-7 w-7 animate-pulse rounded-full bg-ink-100" />
+        <div className="flex flex-col gap-1.5">
+          <div className="h-3 w-24 animate-pulse rounded bg-ink-100" />
+          <div className="h-2.5 w-16 animate-pulse rounded bg-ink-100" />
+        </div>
+      </div>
+      <div className="mt-4 h-4 w-3/4 animate-pulse rounded bg-ink-100" />
+      <div className="mt-3 h-3 w-full animate-pulse rounded bg-ink-100" />
+      <div className="mt-2 h-3 w-2/3 animate-pulse rounded bg-ink-100" />
+      <div className="mt-4 h-7 w-24 animate-pulse rounded-lg bg-ink-100" />
+    </div>
+  );
+}
+
+function EmptyState({ title, description }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-ink-300 bg-ink-100/40 px-6 py-16 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-card">
+        <IconInbox className="h-5 w-5 text-ink-500" />
+      </div>
+      <h3 className="font-display text-base font-semibold text-ink-900">{title}</h3>
+      <p className="max-w-sm text-sm text-ink-500">{description}</p>
+    </div>
+  );
+}
+
+function ComposerModal({ open, onClose, user, onSubmit }) {
+  const initialState = { title: "", description: "", prize: "", tgContact: "", category: "", deadline: "" };
+  const [form, setForm] = useState(initialState);
+  const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleClose = () => {
+    if (submitting) return;
+    setForm(initialState);
+    setErrors({});
+    onClose();
+  };
+
+  const validate = () => {
+    const next = {};
+    if (!form.description.trim() || form.description.trim().length < 10) next.description = "Describe the bounty in at least 10 characters.";
+    if (!form.prize.trim()) next.prize = 'Prize is required, e.g. "250 USDC".';
+    if (!isValidTelegramContact(form.tgContact)) next.tgContact = "Enter a valid @username or t.me link.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        title: form.title.trim(),
+        description: form.description.trim(),
+        prize: form.prize.trim(),
+        category: form.category || null,
+        deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
+        tg_contact: form.tgContact.trim(),
+      });
+      toast.success("Bounty posted", { description: "It's now live in the feed." });
+      setForm(initialState);
+      onClose();
+    } catch (err) {
+      toast.error("Couldn't post bounty", { description: err && err.message ? err.message : "Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={handleClose} title="Post a bounty" maxWidth="max-w-xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="flex items-center gap-2.5 rounded-lg bg-ink-100 px-3.5 py-2.5">
+          {user.avatarUrl ? <img src={user.avatarUrl} alt={user.username} className="h-6 w-6 rounded-full" /> : <div className="h-6 w-6 rounded-full bg-ink-200" />}
+          <span className="text-sm text-ink-700">Posting as <span className="font-medium text-ink-900">@{user.username}</span></span>
+        </div>
+
+        <Input id="title" label="Title (optional)" placeholder="e.g. Build a Farcaster frame for our launch" value={form.title} maxLength={100} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+
+        <Textarea id="description" label="Description" placeholder="What needs to be done? Be specific about scope and deliverables." rows={4} value={form.description} error={errors.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input id="prize" label="Prize" placeholder="250 USDC" value={form.prize} error={errors.prize} onChange={(e) => setForm((f) => ({ ...f, prize: e.target.value }))} />
+          <Input id="tgContact" label="Telegram contact" placeholder="@yourusername" value={form.tgContact} error={errors.tgContact} onChange={(e) => setForm((f) => ({ ...f, tgContact: e.target.value }))} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="category" className="text-sm font-medium text-ink-700">Category (optional)</label>
+            <select id="category" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full rounded-lg border border-ink-300 bg-white px-3.5 py-2.5 text-sm text-ink-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/30">
+              <option value="">No category</option>
+              {BOUNTY_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <Input id="deadline" label="Deadline (optional)" type="date" value={form.deadline} onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))} />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>Cancel</Button>
+          <Button type="submit" loading={submitting}>Post bounty</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function BountyDetailModal({ bounty, currentUser, onClose, onCloseBounty }) {
+  const [closing, setClosing] = useState(false);
+  if (!bounty) return null;
+  const isOwner = currentUser && currentUser.id === bounty.poster_id;
+  const isOpen = bounty.status === "open";
+
+  const handleClose = async () => {
+    setClosing(true);
+    try {
+      await onCloseBounty(bounty.id);
+      toast.success("Bounty closed");
+    } catch (err) {
+      toast.error("Couldn't close bounty", { description: err && err.message ? err.message : "Please try again." });
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  return (
+    <Modal open={!!bounty} onClose={onClose} maxWidth="max-w-lg">
+      <div className="flex flex-col gap-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            {bounty.poster_avatar_url ? <img src={bounty.poster_avatar_url} alt={bounty.poster_username} className="h-9 w-9 rounded-full object-cover" /> : <div className="h-9 w-9 rounded-full bg-ink-200" />}
+            <div>
+              <p className="text-sm font-semibold text-ink-900">@{bounty.poster_username}</p>
+              <p className="text-xs text-ink-500">{formatDate(bounty.created_at)}</p>
+            </div>
+          </div>
+          <Badge tone={isOpen ? "open" : "closed"}>{isOpen ? "Open" : "Closed"}</Badge>
+        </div>
+
+        {bounty.title && <h2 className="font-display text-xl font-semibold leading-tight text-ink-900">{bounty.title}</h2>}
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{bounty.description}</p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {bounty.category && <Badge tone="neutral">{bounty.category}</Badge>}
+          {bounty.deadline && <Badge tone="neutral"><IconCalendar className="h-3 w-3" /> Due {formatDate(bounty.deadline)}</Badge>}
+        </div>
+
+        <div className="rounded-xl border border-accent-100 bg-accent-50 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-accent-700/80">Prize</p>
+          <p className="mt-1 font-mono text-2xl font-bold text-accent-800">{bounty.prize}</p>
+        </div>
+
+        <a
+          href={isOpen ? telegramHref(bounty.tg_contact) : undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold text-white shadow-sm transition-colors ${isOpen ? "bg-accent-500 hover:bg-accent-600" : "pointer-events-none bg-ink-300"}`}
+        >
+          <IconSend className="h-5 w-5" />
+          {isOpen ? "Contact on Telegram" : "Bounty closed"}
+        </a>
+
+        {isOwner && isOpen && (
+          <Button variant="danger" onClick={handleClose} loading={closing} className="w-full">
+            <IconXCircle className="h-4 w-4" /> Close this bounty
+          </Button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================================
+   SETUP NOTICE — shown instead of the app when Supabase config is missing.
+   ========================================================================= */
+function SetupNotice() {
+  return (
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-500 text-white font-display text-lg font-bold">E</div>
+      <h1 className="font-display text-xl font-semibold text-ink-900">Epoch Bounties needs setup</h1>
+      <p className="text-sm leading-relaxed text-ink-700">
+        Open this file and replace <code className="rounded bg-ink-100 px-1.5 py-0.5">SUPABASE_URL</code> and{" "}
+        <code className="rounded bg-ink-100 px-1.5 py-0.5">SUPABASE_ANON_KEY</code> near the top of the
+        <code className="rounded bg-ink-100 px-1.5 py-0.5"> &lt;script type="text/babel"&gt;</code> block with your own
+        Supabase project values. See <strong>README.md</strong> for the full step-by-step setup (Supabase project,
+        SQL, and X OAuth).
+      </p>
+    </div>
+  );
+}
+
+/* ============================================================================
+   APP
+   ========================================================================= */
+function App() {
+  const { user, loading: authLoading, signInWithX, signOut } = useAuth();
+  const { bounties, loading: bountiesLoading, error, createBounty, closeBounty } = useBounties();
+
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [selectedBountyId, setSelectedBountyId] = useState(null);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("recent");
+
+  const filteredBounties = useMemo(() => {
+    let list = bounties;
+    if (status !== "all") list = list.filter((b) => b.status === status);
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.description.toLowerCase().includes(q) ||
+          (b.title || "").toLowerCase().includes(q) ||
+          b.poster_username.toLowerCase().includes(q) ||
+          (b.category || "").toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list].sort((a, b) => {
+      const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return sort === "recent" ? -diff : diff;
+    });
+    return sorted;
+  }, [bounties, status, query, sort]);
+
+  const selectedBounty = useMemo(() => bounties.find((b) => b.id === selectedBountyId) || null, [bounties, selectedBountyId]);
+
+  const handlePostClick = () => {
+    if (!user) { toast.info("Sign in with X to post a bounty"); return; }
+    setComposerOpen(true);
+  };
+
+  const handleSignIn = async () => {
+    try { await signInWithX(); } catch (err) { toast.error("Sign-in failed", { description: err && err.message ? err.message : "Please try again." }); }
+  };
+
+  const handleSignOut = async () => {
+    try { await signOut(); toast.success("Signed out"); } catch (err) { toast.error("Couldn't sign out"); }
+  };
+
+  return (
+    <div className="min-h-screen bg-white">
+      <ToastViewport />
+      <Header user={user} authLoading={authLoading} onSignIn={handleSignIn} onSignOut={handleSignOut} onPostClick={handlePostClick} />
+
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+        <div className="mb-8 flex flex-col gap-2">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Open bounties</h1>
+          <p className="text-sm text-ink-500">Posted by real X accounts. Every bounty shows a prize and a direct Telegram contact — no middleman.</p>
+        </div>
+
+        <div className="mb-6">
+          <Filters query={query} onQueryChange={setQuery} status={status} onStatusChange={setStatus} sort={sort} onSortChange={setSort} />
+        </div>
+
+        {error && <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Couldn't load bounties: {error}</div>}
+
+        {bountiesLoading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : filteredBounties.length === 0 ? (
+          <EmptyState
+            title={bounties.length === 0 ? "No bounties yet" : "Nothing matches your filters"}
+            description={bounties.length === 0 ? "Be the first to post one — sign in with X to get started." : "Try a different search term or clear your filters."}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {filteredBounties.map((bounty) => <BountyCard key={bounty.id} bounty={bounty} onClick={() => setSelectedBountyId(bounty.id)} />)}
+          </div>
+        )}
+      </main>
+
+      {user && <ComposerModal open={composerOpen} onClose={() => setComposerOpen(false)} user={user} onSubmit={(input) => createBounty(input, user)} />}
+      <BountyDetailModal bounty={selectedBounty} currentUser={user} onClose={() => setSelectedBountyId(null)} onCloseBounty={closeBounty} />
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(isConfigured ? <App /> : <SetupNotice />);
+</script>
+</body>
+</html>
