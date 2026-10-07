@@ -202,7 +202,7 @@ $('#cs').onclick=async()=>{
 };
 (async()=>{
   const{ok,j}=await api('/api/me');if(ok){user=j.user;agent=j.agent}paint();
-  if(location.search.includes('login=failed'))add('bot','Login did not complete. Please try again.');
+  if(location.search.includes('login=failed')){const w=new URLSearchParams(location.search).get('why');add('bot','Login did not complete'+(w?' ('+w+')':'')+'. Please try again.')}
 })();
 </script>
 </body>
