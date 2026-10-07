@@ -21,3 +21,7 @@ Build the demo-mode interface first: a single-page chat with scripted agent repl
 ## Prompt 3: branding
 
 Rename the app to Keepsake and restyle the interface to match the logo: dark navy background, teal and coral accents, tagline "Your AI. Your memory. Your choice."
+
+## Prompt 4: login and agent connection
+
+Fix the mobile layout (single scrolling row of sample prompts, compact recording bar). Add Google login with a Vercel serverless backend and a "connect your agent" step where the user picks OpenAI or Anthropic and pastes an API key. Store the key encrypted in an HttpOnly cookie bound to the user, and route real chat through the backend. Keep demo mode for visitors who are not logged in.

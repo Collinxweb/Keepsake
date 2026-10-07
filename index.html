@@ -8,6 +8,7 @@
 <style>
 :root{--paper:#060b1d;--ink:#eef2ff;--card:#0e1530;--rule:#252f55;--mute:#97a3cc;--acc:#3fd8b4;--rec:#ff6a55;--me:#12354a;box-sizing:border-box;color-scheme:dark}
 *,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{display:flex;flex-direction:column;background:var(--paper);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
 header,.bar,.composer{width:100%;max-width:720px;margin:0 auto;padding:10px 14px}
@@ -19,7 +20,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .bar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--rule);border-radius:12px;margin-bottom:6px}
 .bar>div{flex:1;min-width:0}
-.bar small{display:block;color:var(--mute);font-size:.8rem}
+.bar small{display:block;color:var(--mute);font-size:.78rem;line-height:1.3}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--rule);display:inline-block;margin-right:6px}
 .on .dot{background:var(--rec);animation:p 1.4s ease-in-out infinite}
 @keyframes p{50%{opacity:.35}}
@@ -36,8 +37,8 @@ main{flex:1;overflow-y:auto;width:100%;max-width:720px;margin:0 auto;padding:8px
 .me{align-self:flex-end;background:var(--me);border-bottom-right-radius:3px}
 .bot{align-self:flex-start;background:var(--card);border:1px solid var(--rule);border-bottom-left-radius:3px}
 .tags{font-size:.74rem;color:var(--mute);margin-top:4px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;width:100%;max-width:720px;margin:0 auto;padding:0 14px}
-.chips button{font-size:.82rem;padding:4px 10px;border-radius:99px}
+.chips{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;width:100%;max-width:720px;margin:0 auto;padding:0 14px}
+.chips button{font-size:.82rem;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:none}.bar b{white-space:nowrap}.bar button{padding:5px 10px;font-size:.85rem}.hr{display:flex;align-items:center;gap:8px}.who{font-size:.8rem;color:var(--mute);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}dialog select,dialog input{width:100%;margin:4px 0 8px;padding:8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}.err{color:var(--rec);min-height:1.2em;font-size:.85rem}
 .composer{background:var(--card);border-top:1px solid var(--rule);max-width:none}
 .composer>*{max-width:692px;margin-left:auto;margin-right:auto}
 .src{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
@@ -56,7 +57,7 @@ dialog .act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 <body>
 <header>
   <div class="brand"><img src="icon.png" alt="" width="34" height="34"><span>Keepsake</span><span class="badge">Demo</span></div>
-  <button id="login" disabled title="Login arrives in the next phase">Log in (soon)</button>
+  <div class="hr"><span class="who" id="who"></span><button id="login">Log in with Google</button></div>
 </header>
 
 <section class="bar" id="bar" aria-label="Recording controls">
@@ -65,6 +66,8 @@ dialog .act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
   <button id="export">Export</button>
   <button id="wipe">Delete</button>
 </section>
+
+<section class="bar" id="agent" hidden aria-label="Agent connection"><div><b id="ag">Agent not connected</b><small id="agsub">Replies are scripted until you connect.</small></div><button id="conn">Connect</button></section>
 
 <main id="chat" aria-live="polite"></main>
 <div class="chips" id="chips"></div>
@@ -82,6 +85,16 @@ dialog .act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
   </div>
 </div>
 
+<dialog id="cd">
+  <h2>Connect your agent</h2>
+  <p>Your key is encrypted and stored in a private cookie. It is only used to send your messages to the provider you pick, and it is never shown again.</p>
+  <label>Provider<select id="prov"><option value="openai">OpenAI</option><option value="anthropic">Anthropic (Claude)</option></select></label>
+  <label>Model (optional)<input id="mod" placeholder="Leave empty for the default" autocomplete="off"></label>
+  <label>API key<input id="key" type="password" placeholder="Paste your API key" autocomplete="off"></label>
+  <div class="err" id="err" role="alert"></div>
+  <div class="act"><button id="cc">Cancel</button><button id="cs">Save</button></div>
+</dialog>
+
 <dialog id="dlg">
   <h2>Save this chat to memory?</h2>
   <p>While this is on, your messages are saved to your memory. Chats are never recorded unless you turn it on, and you can pause, export or delete at any time.</p>
@@ -91,12 +104,12 @@ dialog .act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 
 <script>
 const $=s=>document.querySelector(s);
-let src='own',consent=false,mem=[],log=[];
+let src='own',consent=false,mem=[],log=[],user=null,agent=null,hist=[];
 
 function add(role,text,tags){
   const d=document.createElement('div');d.className='m '+role;d.textContent=text;
   if(tags){const s=document.createElement('div');s.className='tags';s.textContent=tags;d.appendChild(s)}
-  $('#chat').appendChild(d);d.scrollIntoView({block:'end'});
+  $('#chat').appendChild(d);d.scrollIntoView({block:'end'});return d;
 }
 // One gate for saving: nothing is stored unless consent is on.
 function saveGate(entry){if(!consent)return false;mem.push(entry);return true}
@@ -152,7 +165,14 @@ function send(){
     if(saveGate(entry))tag+=(tag?' | ':'')+'saved (simulated)';
   }
   add('me',t,tag);$('#t').value='';$('#t').style.height='auto';
-  setTimeout(()=>add('bot',reply(t)),400);
+  if(isCmd||!agent){setTimeout(()=>add('bot',reply(t)),400);return}
+  hist.push({role:'user',content:t});
+  const w=add('bot','Thinking...');
+  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist})}).then(({ok,j})=>{
+    if(ok){hist.push({role:'assistant',content:j.reply});w.textContent=j.reply}
+    else{hist.pop();w.textContent=j.error||'Something went wrong.'}
+    w.scrollIntoView({block:'end'});
+  });
 }
 $('#send').onclick=send;
 $('#t').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
@@ -162,6 +182,28 @@ $('#t').addEventListener('input',e=>{e.target.style.height='auto';e.target.style
   const b=document.createElement('button');b.textContent=c;b.onclick=()=>{$('#t').value=c;send()};$('#chips').appendChild(b);
 });
 add('bot','Welcome to Keepsake. Your AI, your memory, your choice. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works, or tag a prompt "From Prompted" and ask for a breakdown.');
+
+async function api(p,o){try{const r=await fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o});let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}}catch(e){return{ok:false,j:{error:'Network problem. Check your connection and try again.'}}}}
+function paint(){
+  $('#login').textContent=user?'Log out':'Log in with Google';$('#who').textContent=user?user.name:'';
+  $('#agent').hidden=!user;
+  $('#ag').textContent=agent?'Agent: '+agent.provider:'Agent not connected';
+  $('#agsub').textContent=agent?agent.model:'Replies are scripted until you connect.';
+  $('#conn').textContent=agent?'Disconnect':'Connect';
+}
+$('#login').onclick=async()=>{if(user){await api('/api/logout',{method:'POST'});user=agent=null;hist=[];paint()}else location.href='/api/auth/google'};
+$('#conn').onclick=async()=>{if(agent){await api('/api/connect',{method:'DELETE'});agent=null;hist=[];paint()}else $('#cd').showModal()};
+$('#cc').onclick=()=>$('#cd').close();
+$('#cs').onclick=async()=>{
+  const{ok,j}=await api('/api/connect',{method:'POST',body:JSON.stringify({provider:$('#prov').value,model:$('#mod').value,key:$('#key').value})});
+  if(!ok){$('#err').textContent=j.error||'Could not connect.';return}
+  $('#key').value='';$('#err').textContent='';agent=j.agent;$('#cd').close();paint();
+  add('bot','Agent connected. Your messages now go to your own agent.');
+};
+(async()=>{
+  const{ok,j}=await api('/api/me');if(ok){user=j.user;agent=j.agent}paint();
+  if(location.search.includes('login=failed'))add('bot','Login did not complete. Please try again.');
+})();
 </script>
 </body>
 </html>
