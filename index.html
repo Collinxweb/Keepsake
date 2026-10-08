@@ -38,7 +38,7 @@ main{flex:1;overflow-y:auto;width:100%;max-width:720px;margin:0 auto;padding:8px
 .bot{align-self:flex-start;background:var(--card);border:1px solid var(--rule);border-bottom-left-radius:3px}
 .tags{font-size:.74rem;color:var(--mute);margin-top:4px}
 .chips{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;width:100%;max-width:720px;margin:0 auto;padding:0 14px}
-.chips button{font-size:.82rem;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:none}.bar b{white-space:nowrap}.bar button{padding:5px 10px;font-size:.85rem}.hr{display:flex;align-items:center;gap:8px}.who{font-size:.8rem;color:var(--mute);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}dialog select,dialog input{width:100%;margin:4px 0 8px;padding:8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}.err{color:var(--rec);min-height:1.2em;font-size:.85rem}
+.chips button{font-size:.82rem;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:none}.bar b{white-space:nowrap}.bar button{padding:5px 10px;font-size:.85rem}.hr{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px}.who{font-size:.8rem;color:var(--mute);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}dialog select,dialog input{width:100%;margin:4px 0 8px;padding:8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}.err{color:var(--rec);min-height:1.2em;font-size:.85rem}
 .composer{background:var(--card);border-top:1px solid var(--rule);max-width:none}
 .composer>*{max-width:692px;margin-left:auto;margin-right:auto}
 .src{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
@@ -57,7 +57,7 @@ dialog .act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 <body>
 <header>
   <div class="brand"><img src="icon.png" alt="" width="34" height="34"><span>Keepsake</span><span class="badge">Demo</span></div>
-  <div class="hr"><span class="who" id="who"></span><button id="login">Log in with Google</button><button id="ghlogin">Log in with GitHub</button></div>
+  <div class="hr"><span class="who" id="who"></span><button id="login">Log in with Google</button><button id="ghlogin">Log in with GitHub</button><button id="dclogin">Log in with Discord</button></div>
 </header>
 
 <section class="bar" id="bar" aria-label="Recording controls">
@@ -185,7 +185,7 @@ add('bot','Welcome to Keepsake. Your AI, your memory, your choice. This is a dem
 
 async function api(p,o){try{const r=await fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o});let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}}catch(e){return{ok:false,j:{error:'Network problem. Check your connection and try again.'}}}}
 function paint(){
-  $('#login').textContent=user?'Log out':'Log in with Google';$('#ghlogin').hidden=!!user;$('#who').textContent=user?user.name:'';
+  $('#login').textContent=user?'Log out':'Log in with Google';$('#ghlogin').hidden=$('#dclogin').hidden=!!user;$('#who').textContent=user?user.name:'';
   $('#agent').hidden=!user;
   $('#ag').textContent=agent?'Agent: '+agent.provider:'Agent not connected';
   $('#agsub').textContent=agent?agent.model:'Replies are scripted until you connect.';
@@ -193,6 +193,7 @@ function paint(){
 }
 $('#login').onclick=async()=>{if(user){await api('/api/logout',{method:'POST'});user=agent=null;hist=[];paint()}else location.href='/api/auth/google'};
 $('#ghlogin').onclick=()=>{location.href='/api/auth/github/start'};
+$('#dclogin').onclick=()=>{location.href='/api/auth/discord/start'};
 $('#conn').onclick=async()=>{if(agent){await api('/api/connect',{method:'DELETE'});agent=null;hist=[];paint()}else $('#cd').showModal()};
 $('#cc').onclick=()=>$('#cd').close();
 $('#cs').onclick=async()=>{
