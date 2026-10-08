@@ -1,0 +1,7 @@
+{
+  "name": "keepsake",
+  "private": true,
+  "dependencies": {
+    "@mysten-incubation/memwal": "latest"
+  }
+}

@@ -33,3 +33,11 @@ Rebuild the interface to the new prototypes: a split onboarding screen with Goog
 ## Prompt 6: shared Gemini and OpenRouter providers
 
 Add Gemini and OpenRouter as shared providers. The server holds the keys in environment variables, and the browser never sees them. Validate the model against an allowlist, route chat through a provider registry, return friendly errors without raw provider text, and keep user-owned OpenAI and Claude keys separate from the shared providers.
+
+## Prompt 7: public feedback
+
+Add a Feedback section. Logged-in testers post structured feedback (feature, provider, model, what was tested, expected and actual results, whether it worked, bugs, suggestions). Each post becomes a public GitHub issue labelled feedback, so anyone can read the feedback. The server holds the GitHub token; posting requires a login, and the token is never sent to the browser.
+
+## Prompt 8: Walrus Memory layer
+
+Connect Keepsake to Walrus Memory through the MemWal TypeScript SDK, on the server only. Each user gets a hashed namespace. Before each reply, recall relevant memory and pass it to the model as data, not instructions. When recording is on, ask the same model for durable facts, drop anything that looks like a secret, and save the rest. Report saved, submitted, or unavailable honestly, and never claim a save that was not accepted. Adapted from the Markov protocol: memory layout, write gate, and never fake a save. Capsules, workspace manifest, custom triggers, and the shell bridge are left out.

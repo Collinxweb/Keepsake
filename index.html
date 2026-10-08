@@ -105,6 +105,8 @@ textarea{flex:1 1 auto;min-width:0;width:100%;resize:none;border:1px solid var(-
 @media(max-width:759px){.topbar{flex-wrap:nowrap;padding:8px 10px;gap:6px}.topbar .lockup{min-width:0;gap:6px}.topbar .lockup b{font-size:1.02rem}.rw{display:none}.rs{display:inline}.pill{padding:4px 9px;font-size:.76rem;max-width:105px;overflow:hidden;text-overflow:ellipsis}.topbar img{width:26px;height:26px}}
 
 /* dialogs */
+.setcard label{display:grid;gap:4px;font-size:.9rem}
+.setcard input,.setcard select,.setcard textarea{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;max-width:420px;width:calc(100% - 32px);padding:18px}
 dialog::backdrop{background:rgba(0,0,0,.55)}
 dialog h2{margin:0 0 8px;font:700 1.15rem Georgia,serif}
@@ -157,6 +159,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
       <button data-tab="chat" aria-current="page">Chat</button>
       <button data-tab="memory">Memory</button>
       <button data-tab="prompted">Prompted</button>
+      <button data-tab="feedback">Feedback</button>
       <button data-tab="settings">Settings</button>
     </nav>
 
@@ -191,6 +194,29 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
         <p class="muted">Prompts you imported from prmpted.com, tagged with their author and link. Import them from the chat composer using "From Prompted".</p>
         <div><button id="brk" class="primary">Get a breakdown</button></div>
         <div id="plist" style="display:grid;gap:8px"></div>
+      </section>
+
+      <section data-view="feedback" class="sec" hidden>
+        <h2>Feedback</h2>
+        <p class="muted">Test the agent and tell us what happened. Posts are public, so don't include keys or personal details. Log in to post; everyone can read.</p>
+        <div class="setcard" id="fb-form">
+          <label>Feature tested <select id="fb-feature"><option>Login</option><option>Chat</option><option>Memory</option><option>Recording</option><option>Provider switching</option><option>Settings</option><option>Other</option></select></label>
+          <label>Provider <select id="fb-provider"><option>Gemini</option><option>OpenRouter</option><option>OpenAI</option><option>Claude</option><option>Demo</option></select></label>
+          <label>Model <input id="fb-model" placeholder="e.g. gemini-3.1-flash-lite"></label>
+          <label>What you tested <textarea id="fb-tested" rows="2"></textarea></label>
+          <label>Expected result <textarea id="fb-expected" rows="2"></textarea></label>
+          <label>Actual result <textarea id="fb-actual" rows="2"></textarea></label>
+          <label>Did it work? <select id="fb-worked"><option value="">Choose</option><option>Yes</option><option>No</option><option>Partly</option></select></label>
+          <label>Feedback <textarea id="fb-feedback" rows="3"></textarea></label>
+          <label>Bug (optional) <textarea id="fb-bug" rows="2"></textarea></label>
+          <label>Suggested improvement (optional) <textarea id="fb-improvement" rows="2"></textarea></label>
+          <div class="err" id="fb-err" role="alert"></div>
+          <button class="primary" id="fb-send">Post feedback</button>
+          <small class="muted" id="fb-status"></small>
+        </div>
+        <h2 style="font-size:1.1rem">Everyone's feedback</h2>
+        <div id="fb-list" style="display:grid;gap:8px"></div>
+        <a class="link" href="https://github.com/Collinxweb/Keepsake/issues?q=label%3Afeedback" target="_blank" rel="noopener">Open all feedback on GitHub</a>
       </section>
 
       <section data-view="settings" class="sec" hidden>
@@ -231,6 +257,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
     <button data-tab="chat" aria-current="page">Chat</button>
     <button data-tab="memory">Memory</button>
     <button data-tab="prompted">Prompted</button>
+    <button data-tab="feedback">Feedback</button>
     <button data-tab="settings">Settings</button>
   </nav>
 </div>
@@ -265,6 +292,7 @@ function setTab(t){
   $$('[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));
   if(t==='memory')renderMem();
   if(t==='prompted')renderPrompted();
+  if(t==='feedback')renderFeedback();
 }
 function api(p,o){
   return fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o})
@@ -306,7 +334,27 @@ function wipe(){
   const n=mem.length;mem=[];paint();renderMem();renderPrompted();
   add('bot','Deleted '+n+' saved message'+(n===1?'':'s')+'.');
 }
+function memNote(m){
+  let t='';
+  if(m.recall==='unavailable')t='Memory is unavailable right now, so this reply was not personalized.';
+  else if(m.recalled>0)t='Used '+m.recalled+' saved memor'+(m.recalled===1?'y':'ies')+'. ';
+  if(m.save==='confirmed')t+='Saved to memory.';
+  else if(m.save==='submitted')t+='Save submitted, confirmation pending.';
+  else if(m.save==='unavailable')t+='Could not update memory right now. Nothing was saved.';
+  return el('div','tags',t.trim());
+}
 function renderMem(){
+  if(!user){renderLocalMem();return}
+  const box=$('#memlist');box.replaceChildren(el('p','muted','Loading...'));
+  api('/api/memory').then(({ok,j})=>{
+    box.replaceChildren();
+    if(!ok){box.append(el('p','muted',j.error||'Memory is unavailable right now.'));return}
+    if(j.status!=='ok'){box.append(el('p','muted','Memory is unavailable right now. Saved items appear here when it reconnects.'));return}
+    if(!j.items.length){box.append(el('p','muted','Nothing saved yet. Turn on recording and chat.'));return}
+    j.items.forEach(it=>{const c=el('div','item',it.text);if(it.created)c.append(el('small','',new Date(it.created).toLocaleString()));box.append(c)});
+  });
+}
+function renderLocalMem(){
   const box=$('#memlist');box.replaceChildren();
   if(!mem.length){box.append(el('p','muted','Nothing saved yet. Turn on recording to save your chats.'));return}
   mem.slice().reverse().forEach(e=>{
@@ -365,12 +413,41 @@ function send(){
   }
   hist.push({role:'user',content:t});
   const w=add('bot','Thinking...');
-  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist,provider:prov,model:$('#msel').value.split('|')[1]})}).then(({ok,j})=>{
-    if(ok){hist.push({role:'assistant',content:j.reply});w.textContent=j.reply}
+  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist,provider:prov,model:$('#msel').value.split('|')[1],recording:consent})}).then(({ok,j})=>{
+    if(ok){hist.push({role:'assistant',content:j.reply});w.textContent=j.reply;if(j.memory)w.append(memNote(j.memory))}
     else{hist.pop();w.textContent=j.error||'Something went wrong.'}
     w.scrollIntoView({block:'end'});
   });
 }
+function renderFeedback(){
+  const box=$('#fb-list');box.replaceChildren(el('p','muted','Loading...'));
+  api('/api/feedback').then(({ok,j})=>{
+    box.replaceChildren();
+    if(!ok){box.append(el('p','muted',j.error||'Could not load feedback.'));return}
+    if(!j.items.length){box.append(el('p','muted','No feedback yet. Be the first.'));return}
+    j.items.forEach(it=>{
+      const c=el('div','item');
+      c.append(el('b','',it.title));
+      c.append(el('small','',new Date(it.created_at).toLocaleString()));
+      const d=el('div','',(it.body||'').replace(/\*\*/g,'').slice(0,500));
+      d.style.whiteSpace='pre-wrap';d.style.marginTop='6px';
+      c.append(d);
+      const a=el('a','','View on GitHub');a.href=it.url;a.target='_blank';a.rel='noopener';a.className='link';
+      c.append(a);box.append(c);
+    });
+  });
+}
+$('#fb-send').onclick=async()=>{
+  $('#fb-err').textContent='';
+  if(!user){$('#fb-err').textContent='Log in to post feedback. You can still read everyone\'s feedback below.';return}
+  const payload={feature:$('#fb-feature').value,provider:$('#fb-provider').value,model:$('#fb-model').value,tested:$('#fb-tested').value,expected:$('#fb-expected').value,actual:$('#fb-actual').value,worked:$('#fb-worked').value,feedback:$('#fb-feedback').value,bug:$('#fb-bug').value,improvement:$('#fb-improvement').value};
+  $('#fb-status').textContent='Posting...';
+  const{ok,j}=await api('/api/feedback',{method:'POST',body:JSON.stringify(payload)});
+  if(!ok){$('#fb-status').textContent='';$('#fb-err').textContent=j.error||'Could not post.';return}
+  $('#fb-status').textContent='Posted. Thank you!';
+  ['model','tested','expected','actual','feedback','bug','improvement'].forEach(k=>$('#fb-'+k).value='');
+  $('#fb-worked').value='';renderFeedback();
+};
 function addWelcome(){
   add('bot',user?'Welcome back, '+user.name+'. What would you like to remember, explore or work on today?':'Welcome to Keepsake. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works.');
   const c=el('div','promo');

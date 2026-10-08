@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keepsake feedback</title>
+<link rel="icon" href="icon.png">
+<style>
+:root{--bg:#060b1d;--panel:#0b1330;--card:#0e1837;--line:#1f2a52;--ink:#eef2ff;--mute:#97a3cc;--acc:#3fd8b4;--on-acc:#04101a}
+:root[data-theme=light]{--bg:#eef2f8;--panel:#fff;--card:#fff;--line:#d4dbe8;--ink:#14202b;--mute:#5d6b78;--acc:#17876b;--on-acc:#fff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header img{border-radius:8px}
+header b{font:700 1.2rem Georgia,serif}
+header a{margin-left:auto;color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:7px 12px}
+main{max-width:760px;margin:0 auto;padding:18px 16px 40px}
+h1{font:700 1.5rem Georgia,serif;margin:4px 0 6px}
+.muted{color:var(--mute);font-size:.9rem}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.stat{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card)}
+.stat b{display:block;font-size:1.4rem}
+.stat span{color:var(--mute);font-size:.82rem}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card);margin:10px 0}
+.item h3{margin:0 0 4px;font-size:1rem}
+.item small{color:var(--mute)}
+.item pre{white-space:pre-wrap;font:inherit;margin:8px 0 0;color:var(--ink)}
+.item a{color:var(--acc);font-size:.88rem}
+.err{color:#ff6a55}
+</style>
+</head>
+<body>
+<header>
+  <img src="icon.png" alt="" width="30" height="30"><b>Keepsake</b>
+  <span class="muted">feedback</span>
+  <a href="/#feedback">Post feedback</a>
+</header>
+<main>
+  <h1>Tester feedback</h1>
+  <p class="muted">Every entry is public and shows the time it was posted. Posting requires a login in the app.</p>
+  <div class="stats">
+    <div class="stat"><b id="n">-</b><span>entries</span></div>
+    <div class="stat"><b id="testers">-</b><span>testers</span></div>
+    <div class="stat"><b id="days">-</b><span>days with posts</span></div>
+  </div>
+  <div id="list"><p class="muted">Loading...</p></div>
+</main>
+<script>
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+function tester(body){const m=(body||'').match(/\*\*Tester:\*\*\s*(.+)/);return m?m[1].trim():'Unknown'}
+function feature(body){const m=(body||'').match(/\*\*Feature tested:\*\*\s*(.+)/);return m?m[1].trim():''}
+fetch('/api/feedback',{credentials:'same-origin'}).then(async r=>{
+  const j=await r.json().catch(()=>({}));
+  const list=document.getElementById('list');list.replaceChildren();
+  if(!r.ok){list.append(el('p','err',j.error||'Could not load feedback.'));return}
+  const items=j.items||[];
+  const days=new Set(items.map(i=>i.created_at.slice(0,10)));
+  const testers=new Set(items.map(i=>tester(i.body)));
+  document.getElementById('n').textContent=items.length;
+  document.getElementById('testers').textContent=testers.size;
+  document.getElementById('days').textContent=days.size;
+  if(!items.length){list.append(el('p','muted','No feedback yet.'));return}
+  items.forEach(it=>{
+    const c=el('div','item');
+    c.append(el('h3','',it.title));
+    c.append(el('small','',new Date(it.created_at).toLocaleString()+' · '+tester(it.body)+(feature(it.body)?' · '+feature(it.body):'')));
+    c.append(el('pre','',(it.body||'').replace(/\*\*/g,'').slice(0,800)));
+    const a=el('a','','View on GitHub');a.href=it.url;a.target='_blank';a.rel='noopener';c.append(a);
+    list.append(c);
+  });
+}).catch(()=>{document.getElementById('list').replaceChildren(el('p','err','Could not load feedback.'))});
+</script>
+</body>
+</html>
