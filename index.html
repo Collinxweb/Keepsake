@@ -168,6 +168,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
           <div class="src" role="group" aria-label="Prompt source">
             <button type="button" data-s="own" aria-pressed="true">My own prompt</button>
             <button type="button" data-s="prompted" aria-pressed="false">From Prompted</button>
+            <select class="field" id="msel" aria-label="Provider and model" style="flex:0 1 auto"></select>
             <input class="field" id="handle" placeholder="Author, e.g. @name" hidden>
             <input class="field" id="link" placeholder="Link to the build on prmpted.com" hidden>
           </div>
@@ -278,7 +279,7 @@ function paint(){
   $('#pan-recsub').textContent=consent?'New messages are saved on this device.':"Your conversations aren't saved.";
   $('#pan-toggle').textContent=consent?'Pause recording':'Turn on';
   $('#pan-count').textContent=mem.length+' saved message'+(mem.length===1?'':'s');
-  $('#agpill').textContent=agent?agText:(demo?'Scripted demo':'No agent');
+  $('#agpill').textContent=user?($('#msel').selectedOptions[0]?$('#msel').selectedOptions[0].textContent:'Agent'):(demo?'Scripted demo':'No agent');
   $('#pan-agent').textContent=agent?agText:'Not connected';
   $('#pan-conn').textContent=agent?'Change':'Connect';
   $('#acct').textContent=user?user.name.split(' ')[0]:'Sign in';
@@ -339,6 +340,13 @@ function reply(t){
   if(q.includes('what can you do'))return agent?'I am connected to your agent. I can keep a record of prompts you import from Prompted and send a breakdown when you ask.':'Demo mode: replies are scripted. Connect your agent in Settings to get real answers.';
   return agent?'Your agent is connected.':'Demo reply. Connect your agent in Settings to get real answers.';
 }
+const MODELS=[
+  {v:'gemini|gemini-3.1-flash-lite',t:'Keepsake Gemini'},
+  {v:'openrouter|openrouter/auto',t:'Keepsake OpenRouter'},
+  {v:'openai|gpt-4o-mini',t:'My OpenAI key'},
+  {v:'anthropic|claude-haiku-4-5-20251001',t:'My Claude key'}
+];
+function selProv(){return $('#msel').value.split('|')[0]}
 function send(){
   const t=$('#t').value.trim();if(!t)return;
   const isCmd=t.toLowerCase().includes('breakdown');
@@ -350,10 +358,14 @@ function send(){
   }
   add('me',t,tag);
   $('#t').value='';$('#t').style.height='auto';paint();
-  if(isCmd||!agent){setTimeout(()=>add('bot',reply(t)),350);return}
+  if(isCmd||!user){setTimeout(()=>add('bot',reply(t)),350);return}
+  const prov=selProv();
+  if((prov==='openai'||prov==='anthropic')&&!(agent&&agent.provider===prov)){
+    add('bot','Connect your '+(prov==='openai'?'OpenAI':'Claude')+' API key to use this provider. Open Settings to connect it.');return;
+  }
   hist.push({role:'user',content:t});
   const w=add('bot','Thinking...');
-  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist})}).then(({ok,j})=>{
+  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist,provider:prov,model:$('#msel').value.split('|')[1]})}).then(({ok,j})=>{
     if(ok){hist.push({role:'assistant',content:j.reply});w.textContent=j.reply}
     else{hist.pop();w.textContent=j.error||'Something went wrong.'}
     w.scrollIntoView({block:'end'});
@@ -413,6 +425,7 @@ $('#t').addEventListener('input',e=>{e.target.style.height='auto';e.target.style
   const b=el('button','',c);b.onclick=()=>{$('#t').value=c;send()};$('#chips').appendChild(b);
 });
 
+$('#msel').replaceChildren(...MODELS.map(m=>{const o=document.createElement('option');o.value=m.v;o.textContent=m.t;return o}));
 // Start
 (async()=>{
   const p=new URLSearchParams(location.search);

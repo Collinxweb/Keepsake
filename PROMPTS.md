@@ -29,3 +29,7 @@ Fix the mobile layout (single scrolling row of sample prompts, compact recording
 ## Prompt 5: redesign and mobile fixes
 
 Rebuild the interface to the new prototypes: a split onboarding screen with Google, GitHub and Discord sign-in, plus a demo option; a dashboard with sidebar, chat, and a Memory and Privacy panel on desktop; bottom tabs on phones; and Chat, Memory, Prompted and Settings pages. Make the phone top bar fit on one row, and show the provider logos on the sign-in buttons.
+
+## Prompt 6: shared Gemini and OpenRouter providers
+
+Add Gemini and OpenRouter as shared providers. The server holds the keys in environment variables, and the browser never sees them. Validate the model against an allowlist, route chat through a provider registry, return friendly errors without raw provider text, and keep user-owned OpenAI and Claude keys separate from the shared providers.
