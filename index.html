@@ -1,158 +1,337 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Keepsake – Your AI. Your memory. Your choice.</title>
 <link rel="icon" href="icon.png">
 <style>
-:root{--paper:#060b1d;--ink:#eef2ff;--card:#0e1530;--rule:#252f55;--mute:#97a3cc;--acc:#3fd8b4;--rec:#ff6a55;--me:#12354a;box-sizing:border-box;color-scheme:dark}
-*,*::before,*::after{box-sizing:inherit}
+:root{--bg:#060b1d;--panel:#0b1330;--card:#0e1837;--line:#1f2a52;--ink:#eef2ff;--mute:#97a3cc;--acc:#3fd8b4;--on-acc:#04101a;--rec:#ff6a55;--me:#12354a}
+:root[data-theme=light]{--bg:#eef2f8;--panel:#ffffff;--card:#ffffff;--line:#d4dbe8;--ink:#14202b;--mute:#5d6b78;--acc:#17876b;--on-acc:#ffffff;--rec:#d6403a;--me:#dcebf1}
+*{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%;margin:0}
-body{display:flex;flex-direction:column;background:var(--paper);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
-header,.bar,.composer{width:100%;max-width:720px;margin:0 auto;padding:10px 14px}
-header{display:flex;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:8px;font:700 1.35rem Georgia,"Times New Roman",serif;letter-spacing:.2px}.brand img{border-radius:8px}
-.badge{font:600 .72rem system-ui;background:var(--acc);color:#04101a;border-radius:99px;padding:2px 9px}
-button{font:inherit;border:1px solid var(--rule);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
-button:disabled{opacity:.55;cursor:not-allowed}
-button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
-.bar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--rule);border-radius:12px;margin-bottom:6px}
-.bar>div{flex:1;min-width:0}
-.bar small{display:block;color:var(--mute);font-size:.78rem;line-height:1.3}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--rule);display:inline-block;margin-right:6px}
-.on .dot{background:var(--rec);animation:p 1.4s ease-in-out infinite}
-@keyframes p{50%{opacity:.35}}
-@media(prefers-reduced-motion:reduce){.on .dot{animation:none}}
-.sw{position:relative;width:46px;height:26px;flex:none}
-.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
-.sw span{position:absolute;inset:0;background:var(--rule);border-radius:99px;transition:background .15s}
-.sw span::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .15s}
-.sw input:checked+span{background:var(--rec)}
-.sw input:checked+span::after{transform:translateX(20px)}
-.sw input:focus-visible+span{outline:3px solid var(--acc);outline-offset:2px}
-main{flex:1;overflow-y:auto;width:100%;max-width:720px;margin:0 auto;padding:8px 14px;display:flex;flex-direction:column;gap:10px}
-.m{max-width:88%;padding:9px 12px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
-.me{align-self:flex-end;background:var(--me);border-bottom-right-radius:3px}
-.bot{align-self:flex-start;background:var(--card);border:1px solid var(--rule);border-bottom-left-radius:3px}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.primary{background:var(--acc);color:var(--on-acc);border-color:var(--acc);font-weight:600}
+.ghost{background:transparent}
+.muted{color:var(--mute);font-size:.88rem;margin:4px 0}
+.lockup{display:flex;align-items:center;gap:10px}
+.lockup b{font:700 1.2rem Georgia,"Times New Roman",serif}
+.badge{background:var(--acc);color:var(--on-acc);border-radius:99px;padding:2px 9px;font-size:.72rem;font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mute);margin-right:6px}
+.pill{border-radius:99px;padding:6px 12px;font-size:.84rem;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.pill.on{border-color:var(--rec)}
+.pill.on .dot{background:var(--rec)}
+.acc{color:var(--acc)}
+.err{color:var(--rec);min-height:1.2em;font-size:.85rem}
+.act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+
+/* onboarding */
+#auth{min-height:100vh;display:grid;grid-template-columns:1fr}
+.brand-panel{padding:28px 22px;background:linear-gradient(160deg,#0b1a3a,#060b1d 65%);color:#eef2ff}
+.brand-panel h1{font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.15;margin:28px 0 12px;font-weight:800}
+.lead{color:#97a3cc;max-width:460px}
+.feats{list-style:none;padding:0;margin:24px 0 0;display:grid;gap:16px}
+.feats li{display:grid;gap:2px}
+.feats span{color:#97a3cc;font-size:.92rem}
+.auth-card{display:flex;padding:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;width:100%;max-width:400px;margin:auto}
+.card h2{margin:14px 0 2px;font:700 1.6rem system-ui,sans-serif}
+.center{justify-content:center}
+.prov{width:100%;display:flex;justify-content:space-between;align-items:center;padding:13px 14px;margin:8px 0;border-radius:12px;text-align:left;background:var(--card)}
+.prov.light{background:#fff;color:#111}
+.or{display:flex;align-items:center;gap:10px;color:var(--mute);margin:14px 0;font-size:.85rem}
+.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.note{margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:2px;font-size:.9rem}
+.note span{color:var(--mute)}
+@media(min-width:900px){#auth{grid-template-columns:1.1fr 1fr}.brand-panel{padding:56px 64px}}
+
+/* app shell */
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.topbar .lockup{margin-right:auto}
+.topbar img{border-radius:8px}
+.shell{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);min-width:0}
+.side{display:none}
+main{min-height:0;min-width:0;display:flex;flex-direction:column}
+[data-view]{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow-y:auto}
+.sec{padding:16px;gap:12px}
+.sec h2{margin:0 0 4px;font:700 1.4rem Georgia,serif}
+#chat{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.m{max-width:88%;padding:9px 12px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--card);border:1px solid var(--line)}
+.m.me{align-self:flex-end;background:var(--me);border:0}
+.m.bot{align-self:flex-start}
 .tags{font-size:.74rem;color:var(--mute);margin-top:4px}
-.chips{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;width:100%;max-width:720px;margin:0 auto;padding:0 14px}
-.chips button{font-size:.82rem;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:none}.bar b{white-space:nowrap}.bar button{padding:5px 10px;font-size:.85rem}.hr{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px}.who{font-size:.8rem;color:var(--mute);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}dialog select,dialog input{width:100%;margin:4px 0 8px;padding:8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}.err{color:var(--rec);min-height:1.2em;font-size:.85rem}
-.composer{background:var(--card);border-top:1px solid var(--rule);max-width:none}
-.composer>*{max-width:692px;margin-left:auto;margin-right:auto}
+.promo{align-self:flex-start;max-width:88%;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:0 12px 8px}
+.chips button{white-space:nowrap;border-radius:99px;font-size:.82rem;padding:4px 10px}
+.composer{border-top:1px solid var(--line);padding:10px 12px;background:var(--panel)}
 .src{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-.src button[aria-pressed=true]{background:var(--acc);color:#04101a;border-color:var(--acc)}
-.src input{flex:1 1 140px;min-width:0;border:1px solid var(--rule);border-radius:8px;padding:6px 9px;font:inherit;background:var(--paper);color:var(--ink)}
-.row{display:flex;gap:8px}
-textarea{flex:1;resize:none;border:1px solid var(--rule);border-radius:10px;padding:9px 11px;font:inherit;max-height:120px;background:var(--paper);color:var(--ink)}
-#send{background:var(--acc);color:#04101a;border-color:var(--acc);font-weight:600}
-dialog{border:1px solid var(--rule);border-radius:14px;max-width:420px;padding:18px;color:var(--ink);background:var(--card)}
-dialog::backdrop{background:rgba(20,32,43,.5)}
+.src button[aria-pressed=true]{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
+.field{flex:1 1 150px;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.row{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1 1 auto;min-width:0;width:100%;resize:none;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--bg);max-height:120px}
+.item{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--card)}
+.item small{color:var(--mute)}
+.bottomnav{display:flex;justify-content:space-around;background:var(--panel);border-top:1px solid var(--line);padding:6px 0 calc(6px + env(safe-area-inset-bottom,0px))}
+.bottomnav button,.side button{border:0;background:none;color:var(--mute);padding:6px 10px;font-size:.82rem}
+.bottomnav button[aria-current=page],.side button[aria-current=page]{color:var(--acc)}
+.side button{text-align:left;padding:10px 12px;border-radius:10px}
+.side button[aria-current=page]{background:var(--card)}
+.panel{display:none}
+.panel .card{padding:14px;max-width:none;margin:0}
+.panel h3{margin:0 0 6px;font-size:1rem}
+.rec-box{display:flex;gap:8px;align-items:center;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px}
+.rec-box small{color:var(--mute);display:block}
+.link{border:0;background:none;padding:6px 0;display:block;text-align:left;color:var(--acc)}
+.setcard{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--card);display:grid;gap:8px}
+@media(min-width:760px){
+  .side{display:flex;flex-direction:column;gap:4px;padding:14px;border-right:1px solid var(--line);background:var(--panel)}
+  .shell{grid-template-columns:200px 1fr}
+  .bottomnav{display:none}
+}
+@media(min-width:1100px){
+  .shell{grid-template-columns:200px 1fr 300px}
+  .panel{display:flex;flex-direction:column;gap:12px;padding:14px;border-left:1px solid var(--line);overflow-y:auto}
+}
+
+/* dialogs */
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;max-width:420px;width:calc(100% - 32px);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.55)}
 dialog h2{margin:0 0 8px;font:700 1.15rem Georgia,serif}
 dialog p{margin:0 0 8px;color:var(--mute)}
-dialog .act{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+dialog label{display:grid;gap:4px;margin:8px 0;font-size:.9rem}
+dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 </style>
 </head>
 <body>
-<header>
-  <div class="brand"><img src="icon.png" alt="" width="34" height="34"><span>Keepsake</span><span class="badge">Demo</span></div>
-  <div class="hr"><span class="who" id="who"></span><button id="login">Log in with Google</button><button id="ghlogin">Log in with GitHub</button><button id="dclogin">Log in with Discord</button></div>
-</header>
 
-<section class="bar" id="bar" aria-label="Recording controls">
-  <label class="sw"><input type="checkbox" id="consent" aria-label="Save this chat to memory"><span></span></label>
-  <div><b><i class="dot"></i><span id="rec">Recording off</span></b><small id="recsub">Nothing you type is saved.</small></div>
-  <button id="export">Export</button>
-  <button id="wipe">Delete</button>
-</section>
-
-<section class="bar" id="agent" hidden aria-label="Agent connection"><div><b id="ag">Agent not connected</b><small id="agsub">Replies are scripted until you connect.</small></div><button id="conn">Connect</button></section>
-
-<main id="chat" aria-live="polite"></main>
-<div class="chips" id="chips"></div>
-
-<div class="composer">
-  <div class="src" role="group" aria-label="Prompt source">
-    <button type="button" data-s="own" aria-pressed="true">My own prompt</button>
-    <button type="button" data-s="prompted" aria-pressed="false">From Prompted</button>
-    <input id="handle" placeholder="Author, e.g. @name" hidden>
-    <input id="link" placeholder="Link to the build on prmpted.com" hidden>
-  </div>
-  <div class="row">
-    <textarea id="t" rows="1" placeholder="Message your agent" aria-label="Message"></textarea>
-    <button id="send">Send</button>
-  </div>
+<!-- Onboarding -->
+<div id="auth" hidden>
+  <section class="brand-panel">
+    <div class="lockup"><img src="icon.png" alt="" width="44" height="44"><div><b>Keepsake</b><div class="lead" style="font-size:.85rem;margin:0">Your thoughts. Your AI. Yours.</div></div></div>
+    <h1>Your AI, your memory, <span class="acc">your choice.</span></h1>
+    <p class="lead">Keepsake is your personal AI companion, where your thoughts, ideas and conversations live on your terms.</p>
+    <ul class="feats">
+      <li><b>Privacy First</b><span>You control what gets saved. Nothing is recorded without your permission.</span></li>
+      <li><b>Your AI Agent</b><span>Chat with the AI models you choose, using your own keys.</span></li>
+      <li><b>Save What Matters</b><span>Keep important conversations, ideas and learnings in one place.</span></li>
+    </ul>
+  </section>
+  <section class="auth-card">
+    <div class="card">
+      <div class="lockup center"><img src="icon.png" alt="" width="48" height="48"><b>Keepsake</b></div>
+      <h2>Welcome</h2>
+      <p class="muted">Sign in to continue to your AI companion.</p>
+      <button class="prov light" id="p-google"><span>Continue with Google</span><span>→</span></button>
+      <button class="prov" id="p-github"><span>Continue with GitHub</span><span>→</span></button>
+      <button class="prov" id="p-discord"><span>Continue with Discord</span><span>→</span></button>
+      <div class="or">or</div>
+      <button class="ghost" id="demo" style="width:100%">Try the demo without signing in</button>
+      <div class="note"><b>Your privacy matters</b><span>We never post to your accounts or share your data without permission.</span></div>
+      <div class="err" id="auth-err" role="alert"></div>
+    </div>
+  </section>
 </div>
 
-<dialog id="cd">
+<!-- App -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="lockup"><img src="icon.png" alt="" width="30" height="30"><b>Keepsake</b><span class="badge" id="demo-badge" hidden>Demo</span></div>
+    <button class="pill" id="agpill">No agent</button>
+    <button class="pill" id="recpill"><i class="dot"></i><span>Recording off</span></button>
+    <button class="pill" id="acct">Sign in</button>
+  </header>
+
+  <div class="shell">
+    <nav class="side" aria-label="Sections">
+      <button data-tab="chat" aria-current="page">Chat</button>
+      <button data-tab="memory">Memory</button>
+      <button data-tab="prompted">Prompted</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+
+    <main>
+      <section data-view="chat" style="min-height:0">
+        <div id="chat" aria-live="polite"></div>
+        <div class="chips" id="chips"></div>
+        <div class="composer">
+          <div class="src" role="group" aria-label="Prompt source">
+            <button type="button" data-s="own" aria-pressed="true">My own prompt</button>
+            <button type="button" data-s="prompted" aria-pressed="false">From Prompted</button>
+            <input class="field" id="handle" placeholder="Author, e.g. @name" hidden>
+            <input class="field" id="link" placeholder="Link to the build on prmpted.com" hidden>
+          </div>
+          <div class="row">
+            <textarea id="t" rows="1" placeholder="Ask your agent..." aria-label="Message"></textarea>
+            <button id="send" class="primary" style="flex:none">Send</button>
+          </div>
+        </div>
+      </section>
+
+      <section data-view="memory" class="sec" hidden>
+        <h2>Memory</h2>
+        <p class="muted">Messages you chose to save. Saved on this device for now.</p>
+        <div class="row"><button id="mem-export">Export</button><button id="mem-delete">Delete all</button></div>
+        <div id="memlist" style="display:grid;gap:8px"></div>
+      </section>
+
+      <section data-view="prompted" class="sec" hidden>
+        <h2>Prompted</h2>
+        <p class="muted">Prompts you imported from prmpted.com, tagged with their author and link. Import them from the chat composer using "From Prompted".</p>
+        <div><button id="brk" class="primary">Get a breakdown</button></div>
+        <div id="plist" style="display:grid;gap:8px"></div>
+      </section>
+
+      <section data-view="settings" class="sec" hidden>
+        <h2>Settings</h2>
+        <div class="setcard"><b>Account</b><div id="set-name"></div><small class="muted" id="set-prov"></small></div>
+        <div class="setcard"><b>Agent</b><div id="set-agent"></div>
+          <div class="row"><button id="set-conn">Connect agent</button><button id="set-disc">Disconnect</button></div>
+        </div>
+        <div class="setcard"><b>Data & privacy</b>
+          <div class="row"><button id="set-export">Export your data</button><button id="set-delete">Delete all saved data</button></div>
+        </div>
+        <div class="setcard"><b>Appearance</b><button id="theme">Switch to light mode</button></div>
+      </section>
+    </main>
+
+    <aside class="panel">
+      <div class="card">
+        <h3>Memory & Privacy</h3>
+        <div class="rec-box"><i class="dot"></i><div><b id="pan-rec">Recording off</b><small id="pan-recsub"></small></div></div>
+        <button id="pan-toggle" class="primary" style="width:100%">Turn on</button>
+        <small class="muted" id="pan-count"></small>
+      </div>
+      <div class="card">
+        <h3>Agent</h3>
+        <div id="pan-agent" class="muted"></div>
+        <button id="pan-conn" style="width:100%;margin-top:6px">Connect</button>
+      </div>
+      <div class="card">
+        <h3>Quick actions</h3>
+        <button class="link" data-act="export">Export your data</button>
+        <button class="link" data-act="delete">Delete all saved data</button>
+        <button class="link" data-tab="settings">Manage settings</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="bottomnav" aria-label="Sections">
+    <button data-tab="chat" aria-current="page">Chat</button>
+    <button data-tab="memory">Memory</button>
+    <button data-tab="prompted">Prompted</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+</div>
+
+<!-- Dialogs -->
+<dialog id="consent-dlg">
+  <h2>Save your chats?</h2>
+  <p>While recording is on, your messages are saved to your Keepsake memory. Nothing is recorded unless you turn it on, and you can pause, export or delete at any time.</p>
+  <p>Don't type passwords, keys or other secrets.</p>
+  <div class="act"><button id="deny">Not now</button><button id="allow" class="primary">Allow recording</button></div>
+</dialog>
+
+<dialog id="agent-dlg">
   <h2>Connect your agent</h2>
-  <p>Your key is encrypted and stored in a private cookie. It is only used to send your messages to the provider you pick, and it is never shown again.</p>
+  <p>Your key is encrypted and kept in a private cookie. It is only used to send your messages to the provider you choose, and it is never shown again.</p>
   <label>Provider<select id="prov"><option value="openai">OpenAI</option><option value="anthropic">Anthropic (Claude)</option></select></label>
   <label>Model (optional)<input id="mod" placeholder="Leave empty for the default" autocomplete="off"></label>
   <label>API key<input id="key" type="password" placeholder="Paste your API key" autocomplete="off"></label>
-  <div class="err" id="err" role="alert"></div>
-  <div class="act"><button id="cc">Cancel</button><button id="cs">Save</button></div>
-</dialog>
-
-<dialog id="dlg">
-  <h2>Save this chat to memory?</h2>
-  <p>While this is on, your messages are saved to your memory. Chats are never recorded unless you turn it on, and you can pause, export or delete at any time.</p>
-  <p>Don't type passwords, keys or other secrets. In this demo, nothing leaves your device.</p>
-  <div class="act"><button id="deny">Not now</button><button id="allow">Allow recording</button></div>
+  <div class="err" id="agent-err" role="alert"></div>
+  <div class="act"><button id="cc">Cancel</button><button id="cs" class="primary">Save</button></div>
 </dialog>
 
 <script>
-const $=s=>document.querySelector(s);
-let src='own',consent=false,mem=[],log=[],user=null,agent=null,hist=[];
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let user=null, agent=null, demo=false, consent=false, mem=[], src='own', hist=[];
 
-function add(role,text,tags){
-  const d=document.createElement('div');d.className='m '+role;d.textContent=text;
-  if(tags){const s=document.createElement('div');s.className='tags';s.textContent=tags;d.appendChild(s)}
-  $('#chat').appendChild(d);d.scrollIntoView({block:'end'});return d;
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function add(role,text,tags){const d=el('div','m '+role,text);if(tags)d.appendChild(el('div','tags',tags));$('#chat').appendChild(d);d.scrollIntoView({block:'end'});return d}
+function show(v){$('#auth').hidden=v!=='auth';$('#app').hidden=v!=='app'}
+function setTab(t){
+  $$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==t);
+  $$('[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));
+  if(t==='memory')renderMem();
+  if(t==='prompted')renderPrompted();
 }
-// One gate for saving: nothing is stored unless consent is on.
-function saveGate(entry){if(!consent)return false;mem.push(entry);return true}
-
-function setConsent(v){
-  consent=v;$('#consent').checked=v;
-  $('#bar').classList.toggle('on',v);
-  $('#rec').textContent=v?'Recording on':'Recording off';
-  $('#recsub').textContent=v?'New messages are saved to a simulated memory on this device.':'Nothing you type is saved.';
-  add('bot',v?'Recording is on. New messages will be saved until you pause it.':'Recording paused. Nothing new is saved.');
+function api(p,o){
+  return fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o})
+    .then(async r=>{let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}})
+    .catch(()=>({ok:false,j:{error:'Network problem. Check your connection and try again.'}}));
 }
-$('#consent').addEventListener('change',e=>{
-  if(e.target.checked){e.target.checked=false;$('#dlg').showModal()}else setConsent(false);
-});
-$('#allow').onclick=()=>{$('#dlg').close();setConsent(true)};
-$('#deny').onclick=()=>$('#dlg').close();
-
-$('#export').onclick=()=>{
-  const b=new Blob([JSON.stringify(mem,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='keepsake-memory.json';a.click();URL.revokeObjectURL(a.href);
+function paint(){
+  const agText=agent?agent.provider+' · '+agent.model:'';
+  $('#recpill span').textContent=consent?'Recording on':'Recording off';
+  $('#recpill').classList.toggle('on',consent);
+  $('#pan-rec').textContent=consent?'Recording on':'Recording off';
+  $('#pan-recsub').textContent=consent?'New messages are saved on this device.':"Your conversations aren't saved.";
+  $('#pan-toggle').textContent=consent?'Pause recording':'Turn on';
+  $('#pan-count').textContent=mem.length+' saved message'+(mem.length===1?'':'s');
+  $('#agpill').textContent=agent?agText:(demo?'Scripted demo':'No agent');
+  $('#pan-agent').textContent=agent?agText:'Not connected';
+  $('#pan-conn').textContent=agent?'Change':'Connect';
+  $('#acct').textContent=user?user.name:'Sign in';
+  $('#demo-badge').hidden=!demo||!!user;
+  $('#set-name').textContent=user?user.name:'Demo visitor';
+  $('#set-prov').textContent=user?(user.email||'Signed in'):'Not signed in';
+  $('#set-agent').textContent=agent?agText:'Not connected';
+  $('#set-conn').textContent=agent?'Change agent':'Connect agent';
+  $('#set-disc').hidden=!agent;
+}
+function setConsent(v){consent=v;paint();add('bot',v?'Recording is on. New messages will be saved until you pause it.':'Recording paused. Nothing new is saved.')}
+function toggleRec(){if(consent)setConsent(false);else $('#consent-dlg').showModal()}
+function openConnect(){
+  if(!user){demo=false;show('auth');$('#auth-err').textContent='Sign in to connect your agent.';return}
+  $('#agent-dlg').showModal();
+}
+function exportData(){
+  const b=new Blob([JSON.stringify({memories:mem},null,2)],{type:'application/json'});
+  const a=el('a');a.href=URL.createObjectURL(b);a.download='keepsake-data.json';a.click();URL.revokeObjectURL(a.href);
   add('bot','Exported '+mem.length+' saved message'+(mem.length===1?'':'s')+'.');
-};
-$('#wipe').onclick=()=>{const n=mem.length;mem=[];add('bot','Deleted '+n+' saved message'+(n===1?'':'s')+'.')};
-
-document.querySelectorAll('.src button').forEach(b=>b.onclick=()=>{
-  src=b.dataset.s;
-  document.querySelectorAll('.src button').forEach(x=>x.setAttribute('aria-pressed',x===b));
-  $('#handle').hidden=$('#link').hidden=src!=='prompted';
-});
-
+}
+function wipe(){
+  if(!confirm('Delete all saved messages on this device?'))return;
+  const n=mem.length;mem=[];paint();renderMem();renderPrompted();
+  add('bot','Deleted '+n+' saved message'+(n===1?'':'s')+'.');
+}
+function renderMem(){
+  const box=$('#memlist');box.replaceChildren();
+  if(!mem.length){box.append(el('p','muted','Nothing saved yet. Turn on recording to save your chats.'));return}
+  mem.slice().reverse().forEach(e=>{
+    const c=el('div','item',e.text);
+    c.append(el('small','',new Date(e.at).toLocaleString()+(e.source==='prompted'?' · From Prompted'+(e.author?' · '+e.author:''):'')));
+    box.append(c);
+  });
+}
+function renderPrompted(){
+  const box=$('#plist');box.replaceChildren();
+  const p=mem.filter(e=>e.source==='prompted');
+  if(!p.length){box.append(el('p','muted','No Prompted prompts saved yet.'));return}
+  p.slice().reverse().forEach(e=>{
+    const c=el('div','item',e.text.length>140?e.text.slice(0,140)+'...':e.text);
+    c.append(el('small','',(e.author||'Author not given')+(e.link?' · '+e.link:'')));
+    box.append(c);
+  });
+}
 function breakdown(){
-  if(!log.length)return 'No prompts yet. Send a few, then ask again.';
-  const p=log.filter(e=>e.source==='prompted');
-  let s='Prompt breakdown\nTotal: '+log.length+' | From Prompted: '+p.length+' | My own: '+(log.length-p.length);
+  const p=mem.filter(e=>e.source==='prompted');
+  if(!consent&&!mem.length)return 'Turn on recording to track prompts. Nothing is saved while recording is off.';
+  if(!p.length)return 'No prompts from Prompted saved yet. Tag a prompt "From Prompted" and send it with recording on.';
+  let s='Prompt breakdown\nTotal saved: '+mem.length+' | From Prompted: '+p.length;
   p.forEach((e,i)=>{s+='\n'+(i+1)+'. '+e.text.slice(0,60)+(e.text.length>60?'...':'')+' | '+(e.author||'author not given')+(e.link?' | '+e.link:'')});
   return s;
 }
 function reply(t){
   const q=t.toLowerCase();
   if(q.includes('breakdown'))return breakdown();
-  if(/record|saved|memory|consent/.test(q))return 'Recording is '+(consent?'on':'off')+'. I only save chats after you opt in, and you can pause, export or delete them at any time.';
-  if(q.includes('what can you do'))return 'In the live version I connect to your own agent, keep a separate record of prompts you pick from Prompted, and send a breakdown whenever you ask. This demo uses scripted replies.';
-  return 'Demo reply: in the live version this message goes to your own agent. Try "/breakdown" to see how prompts are tracked.';
+  if(/record|saved|memory|consent/.test(q))return 'Recording is '+(consent?'on':'off')+'. Chats are only saved after you opt in, and you can pause, export or delete them at any time.';
+  if(q.includes('what can you do'))return agent?'I am connected to your agent. I can keep a record of prompts you import from Prompted and send a breakdown when you ask.':'Demo mode: replies are scripted. Connect your agent in Settings to get real answers.';
+  return agent?'Your agent is connected.':'Demo reply. Connect your agent in Settings to get real answers.';
 }
 function send(){
   const t=$('#t').value.trim();if(!t)return;
@@ -160,12 +339,12 @@ function send(){
   let tag='';
   if(!isCmd){
     const entry={text:t,source:src,author:src==='prompted'?$('#handle').value.trim():'',link:src==='prompted'?$('#link').value.trim():'',at:new Date().toISOString()};
-    log.push(entry);
-    if(src==='prompted')tag='From Prompted'+(entry.author?' | '+entry.author:'');
-    if(saveGate(entry))tag+=(tag?' | ':'')+'saved (simulated)';
+    if(consent){mem.push(entry);tag='saved'}else tag='not saved';
+    if(src==='prompted')tag='From Prompted'+(entry.author?' · '+entry.author:'')+' · '+tag;
   }
-  add('me',t,tag);$('#t').value='';$('#t').style.height='auto';
-  if(isCmd||!agent){setTimeout(()=>add('bot',reply(t)),400);return}
+  add('me',t,tag);
+  $('#t').value='';$('#t').style.height='auto';paint();
+  if(isCmd||!agent){setTimeout(()=>add('bot',reply(t)),350);return}
   hist.push({role:'user',content:t});
   const w=add('bot','Thinking...');
   api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist})}).then(({ok,j})=>{
@@ -174,37 +353,68 @@ function send(){
     w.scrollIntoView({block:'end'});
   });
 }
+function addWelcome(){
+  add('bot',user?'Welcome back, '+user.name+'. What would you like to remember, explore or work on today?':'Welcome to Keepsake. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works.');
+  const c=el('div','promo');
+  c.append(el('b','','Prompted'),el('div','muted','Import a prompt from prmpted.com with its author and link.'));
+  const b=el('button','','Import a prompt');b.style.marginTop='6px';
+  b.onclick=()=>{setSrc('prompted');$('#handle').focus()};
+  c.append(b);$('#chat').appendChild(c);
+}
+function setSrc(s){
+  src=s;
+  $$('.src button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s===s)));
+  $('#handle').hidden=$('#link').hidden=s!=='prompted';
+}
+
+// Wiring
+$$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$$('[data-act]').forEach(b=>b.onclick=()=>b.dataset.act==='export'?exportData():wipe());
+$$('.src button').forEach(b=>b.onclick=()=>setSrc(b.dataset.s));
+$('#recpill').onclick=toggleRec;
+$('#pan-toggle').onclick=toggleRec;
+$('#allow').onclick=()=>{$('#consent-dlg').close();setConsent(true)};
+$('#deny').onclick=()=>$('#consent-dlg').close();
+$('#agpill').onclick=openConnect;
+$('#pan-conn').onclick=openConnect;
+$('#set-conn').onclick=openConnect;
+$('#set-disc').onclick=async()=>{await api('/api/connect',{method:'DELETE'});agent=null;hist=[];paint();add('bot','Agent disconnected. Replies are scripted again.')};
+$('#set-export').onclick=exportData;
+$('#set-delete').onclick=wipe;
+$('#mem-export').onclick=exportData;
+$('#mem-delete').onclick=wipe;
+$('#brk').onclick=()=>{setTab('chat');$('#t').value='/breakdown';send()};
+$('#theme').onclick=()=>{const light=document.documentElement.dataset.theme!=='light';document.documentElement.dataset.theme=light?'light':'dark';$('#theme').textContent=light?'Switch to dark mode':'Switch to light mode'};
+$('#acct').onclick=async()=>{
+  if(user){await api('/api/logout',{method:'POST'});user=agent=null;hist=[]}
+  demo=false;$('#chat').replaceChildren();show('auth');paint();
+};
+$('#p-google').onclick=()=>location.href='/api/auth/google';
+$('#p-github').onclick=()=>location.href='/api/auth/github/start';
+$('#p-discord').onclick=()=>location.href='/api/auth/discord/start';
+$('#demo').onclick=()=>{demo=true;show('app');setTab('chat');addWelcome();paint()};
+$('#cc').onclick=()=>$('#agent-dlg').close();
+$('#cs').onclick=async()=>{
+  const{ok,j}=await api('/api/connect',{method:'POST',body:JSON.stringify({provider:$('#prov').value,model:$('#mod').value,key:$('#key').value})});
+  if(!ok){$('#agent-err').textContent=j.error||'Could not connect.';return}
+  $('#key').value='';$('#agent-err').textContent='';agent=j.agent;hist=[];$('#agent-dlg').close();paint();
+  add('bot','Agent connected. Your messages now go to your own agent.');
+};
 $('#send').onclick=send;
 $('#t').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('#t').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
-
 ['What can you do?','Is my chat being saved?','/breakdown'].forEach(c=>{
-  const b=document.createElement('button');b.textContent=c;b.onclick=()=>{$('#t').value=c;send()};$('#chips').appendChild(b);
+  const b=el('button','',c);b.onclick=()=>{$('#t').value=c;send()};$('#chips').appendChild(b);
 });
-add('bot','Welcome to Keepsake. Your AI, your memory, your choice. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works, or tag a prompt "From Prompted" and ask for a breakdown.');
 
-async function api(p,o){try{const r=await fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o});let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}}catch(e){return{ok:false,j:{error:'Network problem. Check your connection and try again.'}}}}
-function paint(){
-  $('#login').textContent=user?'Log out':'Log in with Google';$('#ghlogin').hidden=$('#dclogin').hidden=!!user;$('#who').textContent=user?user.name:'';
-  $('#agent').hidden=!user;
-  $('#ag').textContent=agent?'Agent: '+agent.provider:'Agent not connected';
-  $('#agsub').textContent=agent?agent.model:'Replies are scripted until you connect.';
-  $('#conn').textContent=agent?'Disconnect':'Connect';
-}
-$('#login').onclick=async()=>{if(user){await api('/api/logout',{method:'POST'});user=agent=null;hist=[];paint()}else location.href='/api/auth/google'};
-$('#ghlogin').onclick=()=>{location.href='/api/auth/github/start'};
-$('#dclogin').onclick=()=>{location.href='/api/auth/discord/start'};
-$('#conn').onclick=async()=>{if(agent){await api('/api/connect',{method:'DELETE'});agent=null;hist=[];paint()}else $('#cd').showModal()};
-$('#cc').onclick=()=>$('#cd').close();
-$('#cs').onclick=async()=>{
-  const{ok,j}=await api('/api/connect',{method:'POST',body:JSON.stringify({provider:$('#prov').value,model:$('#mod').value,key:$('#key').value})});
-  if(!ok){$('#err').textContent=j.error||'Could not connect.';return}
-  $('#key').value='';$('#err').textContent='';agent=j.agent;$('#cd').close();paint();
-  add('bot','Agent connected. Your messages now go to your own agent.');
-};
+// Start
 (async()=>{
-  const{ok,j}=await api('/api/me');if(ok){user=j.user;agent=j.agent}paint();
-  if(location.search.includes('login=failed')){const w=new URLSearchParams(location.search).get('why');add('bot','Login did not complete'+(w?' ('+w+')':'')+'. Please try again.')}
+  const p=new URLSearchParams(location.search);
+  const{ok,j}=await api('/api/me');
+  if(ok){user=j.user;agent=j.agent}
+  if(user){show('app');setTab('chat');addWelcome()}
+  else{show('auth');if(p.get('login')==='failed')$('#auth-err').textContent='Login did not complete ('+(p.get('why')||'unknown')+'). Please try again.'}
+  paint();
 })();
 </script>
 </body>
