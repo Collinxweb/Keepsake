@@ -171,7 +171,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
           <div class="src" role="group" aria-label="Prompt source">
             <button type="button" data-s="own" aria-pressed="true">My own prompt</button>
             <button type="button" data-s="prompted" aria-pressed="false">From Prompted</button>
-            <select class="field" id="msel" aria-label="Provider and model" style="flex:0 1 auto"></select>
+            <select class="field" id="msel" aria-label="Provider and model" style="flex:1 1 100%;width:100%"></select>
             <input class="field" id="handle" placeholder="Author, e.g. @name" hidden>
             <input class="field" id="link" placeholder="Link to the build on prmpted.com" hidden>
           </div>
@@ -222,6 +222,11 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
       <section data-view="settings" class="sec" hidden>
         <h2>Settings</h2>
         <div class="setcard"><b>Account</b><div id="set-name"></div><small class="muted" id="set-prov"></small></div>
+        <div class="setcard"><b>AI providers</b>
+          <div>Keepsake Gemini · provided by Keepsake, no key needed</div>
+          <div>Keepsake OpenRouter · provided by Keepsake, no key needed</div>
+          <div id="set-byok" class="muted"></div>
+        </div>
         <div class="setcard"><b>Agent</b><div id="set-agent"></div>
           <div class="row"><button id="set-conn">Connect agent</button><button id="set-disc">Disconnect</button></div>
         </div>
@@ -317,6 +322,7 @@ function paint(){
   $('#set-agent').textContent=agent?agText:'Not connected';
   $('#set-conn').textContent=agent?'Change agent':'Connect agent';
   $('#set-disc').hidden=!agent;
+  $('#set-byok').textContent=agent?'Your '+(agent.provider==='openai'?'OpenAI':'Claude')+' key is connected. Choose it in the model list.':'Your own OpenAI or Claude key: connect it under Agent below.';
 }
 function setConsent(v){consent=v;paint();add('bot',v?'Recording is on. New messages will be saved until you pause it.':'Recording paused. Nothing new is saved.')}
 function toggleRec(){if(consent)setConsent(false);else $('#consent-dlg').showModal()}
@@ -334,13 +340,14 @@ function wipe(){
   const n=mem.length;mem=[];paint();renderMem();renderPrompted();
   add('bot','Deleted '+n+' saved message'+(n===1?'':'s')+'.');
 }
+const REASON={not_configured:'Memory is not set up on this server yet',sdk_failed:'The memory service failed to load on the server',relayer_failed:'The memory service is not responding right now'};
 function memNote(m){
   let t='';
-  if(m.recall==='unavailable')t='Memory is unavailable right now, so this reply was not personalized.';
+  if(m.recall==='unavailable')t=(REASON[m.reason]||'Memory is unavailable right now')+', so this reply was not personalized. ';
   else if(m.recalled>0)t='Used '+m.recalled+' saved memor'+(m.recalled===1?'y':'ies')+'. ';
   if(m.save==='confirmed')t+='Saved to memory.';
   else if(m.save==='submitted')t+='Save submitted, confirmation pending.';
-  else if(m.save==='unavailable')t+='Could not update memory right now. Nothing was saved.';
+  else if(m.save==='unavailable')t+=(REASON[m.saveReason]||'Could not update memory')+'. Nothing was saved.';
   return el('div','tags',t.trim());
 }
 function renderMem(){
@@ -349,7 +356,7 @@ function renderMem(){
   api('/api/memory').then(({ok,j})=>{
     box.replaceChildren();
     if(!ok){box.append(el('p','muted',j.error||'Memory is unavailable right now.'));return}
-    if(j.status!=='ok'){box.append(el('p','muted','Memory is unavailable right now. Saved items appear here when it reconnects.'));return}
+    if(j.status!=='ok'){box.append(el('p','muted',(REASON[j.reason]||'Memory is unavailable right now')+'.'));return}
     if(!j.items.length){box.append(el('p','muted','Nothing saved yet. Turn on recording and chat.'));return}
     j.items.forEach(it=>{const c=el('div','item',it.text);if(it.created)c.append(el('small','',new Date(it.created).toLocaleString()));box.append(c)});
   });

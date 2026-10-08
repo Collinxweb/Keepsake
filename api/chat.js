@@ -38,13 +38,13 @@ module.exports=async(req,res)=>{
   // Continuity: recall relevant memory before generating.
   const rec=await M.recall(s.sub,lastUser,5);
   const block=rec.items.length?'<keepsake_memory>\n'+rec.items.map(i=>'- '+i.text.slice(0,300)).join('\n')+'\n</keepsake_memory>':'';
-  const memory={recalled:rec.items.length,recall:rec.status,saved:0,save:recording?'none':'off'};
+  const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,saved:0,save:recording?'none':'off',saveReason:'ok'};
   try{
     const reply=await p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs});
     if(recording){
       const facts=await extract(p,key,model,lastUser);
       const w=await M.rememberMany(s.sub,facts);
-      memory.saved=w.saved;memory.save=w.status;
+      memory.saved=w.saved;memory.save=w.status;memory.saveReason=w.reason;
     }
     res.json({reply,provider:p.id,model,memory});
   }catch(e){

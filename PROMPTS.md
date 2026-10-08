@@ -41,3 +41,7 @@ Add a Feedback section. Logged-in testers post structured feedback (feature, pro
 ## Prompt 8: Walrus Memory layer
 
 Connect Keepsake to Walrus Memory through the MemWal TypeScript SDK, on the server only. Each user gets a hashed namespace. Before each reply, recall relevant memory and pass it to the model as data, not instructions. When recording is on, ask the same model for durable facts, drop anything that looks like a secret, and save the rest. Report saved, submitted, or unavailable honestly, and never claim a save that was not accepted. Adapted from the Markov protocol: memory layout, write gate, and never fake a save. Capsules, workspace manifest, custom triggers, and the shell bridge are left out.
+
+## Prompt 9: model list and memory diagnostics
+
+Show all providers in the model list and in Settings, with the shared Keepsake providers marked as needing no key. Replace the generic memory message with a plain reason (not configured, SDK failed to load, relayer not responding) and add a memory health check. Raw errors and credentials are never shown to users.
