@@ -22,6 +22,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .lockup b{font:700 1.2rem Georgia,"Times New Roman",serif}
 .badge{background:var(--acc);color:var(--on-acc);border-radius:99px;padding:2px 9px;font-size:.72rem;font-weight:600}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mute);margin-right:6px}
+.rs{display:none}
 .pill{border-radius:99px;padding:6px 12px;font-size:.84rem;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .pill.on{border-color:var(--rec)}
 .pill.on .dot{background:var(--rec)}
@@ -43,6 +44,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .center{justify-content:center}
 .prov{width:100%;display:flex;justify-content:space-between;align-items:center;padding:13px 14px;margin:8px 0;border-radius:12px;text-align:left;background:var(--card)}
 .prov.light{background:#fff;color:#111}
+.pv{display:flex;align-items:center;gap:12px}
+.pl{width:20px;height:20px;flex:none}
+.mk{width:20px;height:20px;flex:none;display:inline-block;background:var(--c);-webkit-mask:var(--u) center/contain no-repeat;mask:var(--u) center/contain no-repeat}
 .or{display:flex;align-items:center;gap:10px;color:var(--mute);margin:14px 0;font-size:.85rem}
 .or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
 .note{margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:2px;font-size:.9rem}
@@ -98,6 +102,8 @@ textarea{flex:1 1 auto;min-width:0;width:100%;resize:none;border:1px solid var(-
   .panel{display:flex;flex-direction:column;gap:12px;padding:14px;border-left:1px solid var(--line);overflow-y:auto}
 }
 
+@media(max-width:759px){.topbar{flex-wrap:nowrap;padding:8px 10px;gap:6px}.topbar .lockup{min-width:0;gap:6px}.topbar .lockup b{font-size:1.02rem}.rw{display:none}.rs{display:inline}.pill{padding:4px 9px;font-size:.76rem;max-width:105px;overflow:hidden;text-overflow:ellipsis}.topbar img{width:26px;height:26px}}
+
 /* dialogs */
 dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;max-width:420px;width:calc(100% - 32px);padding:18px}
 dialog::backdrop{background:rgba(0,0,0,.55)}
@@ -126,9 +132,9 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
       <div class="lockup center"><img src="icon.png" alt="" width="48" height="48"><b>Keepsake</b></div>
       <h2>Welcome</h2>
       <p class="muted">Sign in to continue to your AI companion.</p>
-      <button class="prov light" id="p-google"><span>Continue with Google</span><span>→</span></button>
-      <button class="prov" id="p-github"><span>Continue with GitHub</span><span>→</span></button>
-      <button class="prov" id="p-discord"><span>Continue with Discord</span><span>→</span></button>
+      <button class="prov light" id="p-google"><span class="pv"><svg class="pl" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</span><span>→</span></button>
+      <button class="prov" id="p-github"><span class="pv"><i class="mk" style="--u:url(https://cdn.jsdelivr.net/npm/simple-icons@11/icons/github.svg);--c:#eef2ff"></i>Continue with GitHub</span><span>→</span></button>
+      <button class="prov" id="p-discord"><span class="pv"><i class="mk" style="--u:url(https://cdn.jsdelivr.net/npm/simple-icons@11/icons/discord.svg);--c:#5865F2"></i>Continue with Discord</span><span>→</span></button>
       <div class="or">or</div>
       <button class="ghost" id="demo" style="width:100%">Try the demo without signing in</button>
       <div class="note"><b>Your privacy matters</b><span>We never post to your accounts or share your data without permission.</span></div>
@@ -142,7 +148,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
   <header class="topbar">
     <div class="lockup"><img src="icon.png" alt="" width="30" height="30"><b>Keepsake</b><span class="badge" id="demo-badge" hidden>Demo</span></div>
     <button class="pill" id="agpill">No agent</button>
-    <button class="pill" id="recpill"><i class="dot"></i><span>Recording off</span></button>
+    <button class="pill" id="recpill"><i class="dot"></i><span><span class="rw">Recording </span><span class="rs">Rec </span><span id="recst">off</span></span></button>
     <button class="pill" id="acct">Sign in</button>
   </header>
 
@@ -266,7 +272,7 @@ function api(p,o){
 }
 function paint(){
   const agText=agent?agent.provider+' · '+agent.model:'';
-  $('#recpill span').textContent=consent?'Recording on':'Recording off';
+  $('#recst').textContent=consent?'on':'off';
   $('#recpill').classList.toggle('on',consent);
   $('#pan-rec').textContent=consent?'Recording on':'Recording off';
   $('#pan-recsub').textContent=consent?'New messages are saved on this device.':"Your conversations aren't saved.";
@@ -275,7 +281,7 @@ function paint(){
   $('#agpill').textContent=agent?agText:(demo?'Scripted demo':'No agent');
   $('#pan-agent').textContent=agent?agText:'Not connected';
   $('#pan-conn').textContent=agent?'Change':'Connect';
-  $('#acct').textContent=user?user.name:'Sign in';
+  $('#acct').textContent=user?user.name.split(' ')[0]:'Sign in';
   $('#demo-badge').hidden=!demo||!!user;
   $('#set-name').textContent=user?user.name:'Demo visitor';
   $('#set-prov').textContent=user?(user.email||'Signed in'):'Not signed in';

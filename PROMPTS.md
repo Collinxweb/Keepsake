@@ -25,3 +25,7 @@ Rename the app to Keepsake and restyle the interface to match the logo: dark nav
 ## Prompt 4: login and agent connection
 
 Fix the mobile layout (single scrolling row of sample prompts, compact recording bar). Add Google login with a Vercel serverless backend and a "connect your agent" step where the user picks OpenAI or Anthropic and pastes an API key. Store the key encrypted in an HttpOnly cookie bound to the user, and route real chat through the backend. Keep demo mode for visitors who are not logged in.
+
+## Prompt 5: redesign and mobile fixes
+
+Rebuild the interface to the new prototypes: a split onboarding screen with Google, GitHub and Discord sign-in, plus a demo option; a dashboard with sidebar, chat, and a Memory and Privacy panel on desktop; bottom tabs on phones; and Chat, Memory, Prompted and Settings pages. Make the phone top bar fit on one row, and show the provider logos on the sign-in buttons.
