@@ -34,7 +34,7 @@ module.exports=async(req,res)=>{
   ].join('\n\n');
   try{
     const r=await fetch(`https://api.github.com/repos/${REPO}/issues`,{method:'POST',headers:{...BASE,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({title,body,labels:['feedback']})});
-    if(!r.ok){console.error('feedback_post',r.status);return res.status(502).json({error:'Could not post feedback right now. Try again.'})}
+    if(!r.ok){console.error('feedback_post',r.status);return res.status(502).json({error:'GitHub refused the post (status '+r.status+'). Check the token has Issues read and write on the Keepsake repo, and that FEEDBACK_REPO matches.'})}
     const i=await r.json();
     res.json({ok:true,url:i.html_url});
   }catch(e){console.error('feedback_post','exception');res.status(502).json({error:'Could not post feedback right now. Try again.'})}
