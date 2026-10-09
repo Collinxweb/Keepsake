@@ -75,7 +75,8 @@ main{min-height:0;min-width:0;display:flex;flex-direction:column}
 .composer{border-top:1px solid var(--line);padding:10px 12px;background:var(--panel)}
 .src{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .src button[aria-pressed=true]{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
-.field{flex:1 1 150px;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.field{flex:1 1 150px;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+select option{background:var(--panel);color:var(--ink)}
 .row{display:flex;gap:8px;align-items:flex-end}
 textarea{flex:1 1 auto;min-width:0;width:100%;resize:none;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--bg);max-height:120px}
 .item{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--card)}
@@ -184,7 +185,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
 
       <section data-view="memory" class="sec" hidden>
         <h2>Memory</h2>
-        <p class="muted">Messages you chose to save. Saved on this device for now.</p>
+        <p class="muted">Facts Keepsake saved to Walrus Memory from your chats. Export shows the same list.</p>
         <div class="row"><button id="mem-export">Export</button><button id="mem-delete">Delete all</button></div>
         <div id="memlist" style="display:grid;gap:8px"></div>
       </section>
