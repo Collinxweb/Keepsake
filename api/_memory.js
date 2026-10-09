@@ -43,6 +43,17 @@ async function recall(sub,query,limit=5){
     return{status:'ok',reason:'ok',items};
   }catch(e){console.error('memwal_recall_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed,items:[]}}
 }
+// Short per-account cache of recalled facts. Walrus lookups are the slowest step, so a chat's later messages reuse them.
+// Cache is per server instance and per account. Saving a fact clears the account's cache.
+const CACHE_MS=180000;
+const cache=new Map();
+async function recallForChat(sub){
+  const hit=cache.get(sub);
+  if(hit&&Date.now()-hit.at<CACHE_MS)return{status:'ok',reason:'ok',items:hit.items,cached:true};
+  const r=await recall(sub,'what the user has told me about themselves, their work, preferences and plans',15);
+  if(r.status==='ok')cache.set(sub,{at:Date.now(),items:r.items});
+  return{status:r.status,reason:r.reason,items:r.items,cached:false};
+}
 // Submits facts, then waits briefly for confirmation. Never claims a save that was not accepted.
 async function rememberMany(sub,facts){
   const clean=facts.filter(f=>typeof f==='string'&&f.trim()&&!looksSecret(f)).slice(0,5);
@@ -50,6 +61,7 @@ async function rememberMany(sub,facts){
   const g=await getClient();
   if(g.reason||!g.m)return{status:'unavailable',saved:0,reason:g.reason||REASON.not_configured};
   try{
+    cache.delete(sub);
     const jobs=await withTimeout(Promise.all(clean.map(f=>g.m.remember(f,ns(sub)))),6000);
     const done=await withGrace(Promise.all(jobs.map(j=>g.m.waitForRememberJob(j.job_id).catch(()=>null))));
     const confirmed=done?done.filter(Boolean).length:0;
@@ -62,4 +74,4 @@ async function health(){
   if(!g.m)return{status:'unavailable',reason:REASON.not_configured};
   try{await g.m.health();return{status:'ok',reason:'ok'}}catch(e){console.error('memwal_health_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed}}
 }
-module.exports={recall,rememberMany,health,looksSecret,ns,withTimeout,setFactory:f=>{factory=f}};
+module.exports={recall,recallForChat,rememberMany,health,looksSecret,ns,withTimeout,setFactory:f=>{factory=f}};

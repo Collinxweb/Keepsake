@@ -49,10 +49,10 @@ module.exports=async(req,res)=>{
   const noMemory={recalled:0,recall:'off',reason:'ok',saved:0,save:'off',saveReason:'ok'};
   if(DELETE_RE.test(lastUser))return res.json({reply:DELETE_REPLY,provider:p.id,model,memory:noMemory});
   const t0=Date.now();
-  const rec=await M.recall(s.sub,lastUser,5);
+  const rec=await M.recallForChat(s.sub);
   const memMs=Date.now()-t0;
   const block=rec.items.length?'<keepsake_memory>\n'+rec.items.map(i=>'- '+i.text.slice(0,300)).join('\n')+'\n</keepsake_memory>':'';
-  const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,saved:0,save:recording?'none':'off',saveReason:'ok'};
+  const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,cached:rec.cached,saved:0,save:recording?'none':'off',saveReason:'ok'};
   try{
     const t1=Date.now();
     const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs}),25000);
