@@ -22,6 +22,8 @@ async function extract(p,key,model,text){
 }
 module.exports=async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
+  const T0=Date.now();
+  const logDone=(status,extra)=>console.log('chat_done',JSON.stringify({status,totalMs:Date.now()-T0,...extra}));
   const s=L.session(req);
   if(!s)return res.status(401).json({error:'Log in to chat.'});
   const body=req.body||{};
@@ -62,8 +64,10 @@ module.exports=async(req,res)=>{
       const w=await M.rememberMany(s.sub,facts);
       memory.saved=w.saved;memory.save=w.status;memory.saveReason=w.reason;
     }
+    logDone(200,{provider:p.id,memMs,modelMs:memory.timing&&memory.timing.modelMs,recalled:memory.recalled,save:memory.save});
     res.json({reply:sanitize(reply),provider:p.id,model,memory});
   }catch(e){
+    logDone(e.message==='timeout'?504:502,{provider:p.id,memMs,reason:e.message==='timeout'?'model_timeout':'provider_error'});
     if(e.message==='timeout')return res.status(504).json({error:'The model did not answer in time. Try again.'});
     console.error('llm_error',p.id,e.status||e.message);
     res.status(502).json({error:'The selected model is temporarily unavailable. Try another model.'});
