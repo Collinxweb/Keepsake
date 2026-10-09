@@ -14,7 +14,7 @@ function sanitize(text){
 async function extract(p,key,model,text){
   if(M.looksSecret(text))return[];
   try{
-    const out=await M.withTimeout(p.generate({key,model,system:EXTRACT,messages:[{role:'user',content:text}]}),15000);
+    const out=await M.withTimeout(p.generate({key,model,system:EXTRACT,messages:[{role:'user',content:text}]}),12000);
     const j=JSON.parse(out.replace(/^```(json)?/i,'').replace(/```$/,'').trim());
     if(!Array.isArray(j))return[];
     return j.filter(x=>typeof x==='string'&&x.length>3&&x.length<300&&!M.looksSecret(x)).slice(0,5);
@@ -46,13 +46,19 @@ module.exports=async(req,res)=>{
   const recording=body.recording===true;
   const noMemory={recalled:0,recall:'off',reason:'ok',saved:0,save:'off',saveReason:'ok'};
   if(DELETE_RE.test(lastUser))return res.json({reply:DELETE_REPLY,provider:p.id,model,memory:noMemory});
+  const t0=Date.now();
   const rec=await M.recall(s.sub,lastUser,5);
+  const memMs=Date.now()-t0;
   const block=rec.items.length?'<keepsake_memory>\n'+rec.items.map(i=>'- '+i.text.slice(0,300)).join('\n')+'\n</keepsake_memory>':'';
   const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,saved:0,save:recording?'none':'off',saveReason:'ok'};
   try{
+    const t1=Date.now();
     const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs}),30000);
+    memory.timing={memMs,modelMs:Date.now()-t1};
     if(recording){
+      const t2=Date.now();
       const facts=await extract(p,key,model,lastUser);
+      memory.timing.extractMs=Date.now()-t2;
       const w=await M.rememberMany(s.sub,facts);
       memory.saved=w.saved;memory.save=w.status;memory.saveReason=w.reason;
     }

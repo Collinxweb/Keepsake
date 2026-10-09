@@ -380,6 +380,7 @@ function memNoteText(m){
   if(m.recall==='unavailable')t=(REASON[m.reason]||'Memory is unavailable right now')+', so this reply was not personalized. ';
   else if(m.recalled>0)t='Recalled '+m.recalled+' saved memor'+(m.recalled===1?'y':'ies')+'. ';
   const same=m.save==='unavailable'&&m.reason&&m.reason===m.saveReason;
+  if(m.timing){const sec=ms=>(ms/1000).toFixed(1)+'s';t+=' Timing: memory '+sec(m.timing.memMs||0)+', model '+sec(m.timing.modelMs||0)+'.';}
   if(m.save==='confirmed')t+='Saved to memory.';
   else if(m.save==='submitted')t+='Save submitted, confirmation pending.';
   else if(m.save==='none')t+='Nothing new to save.';

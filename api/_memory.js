@@ -38,7 +38,7 @@ async function recall(sub,query,limit=5){
   if(g.reason)return{status:'unavailable',reason:g.reason===REASON.sdk_failed?REASON.sdk_failed:REASON.not_configured,items:[]};
   if(!g.m)return{status:'unavailable',reason:REASON.not_configured,items:[]};
   try{
-    const r=await withTimeout(g.m.recall({query,limit,namespace:ns(sub)}),4000);
+    const r=await withTimeout(g.m.recall({query,limit,namespace:ns(sub)}),8000);
     const items=((r&&r.results)||[]).map(x=>({text:String(x.text||x.content||x.plaintext||''),created:x.created_at||x.createdAt||''})).filter(x=>x.text&&!looksSecret(x.text));
     return{status:'ok',reason:'ok',items};
   }catch(e){console.error('memwal_recall_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed,items:[]}}
