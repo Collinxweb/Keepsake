@@ -14,7 +14,7 @@ function sanitize(text){
 async function extract(p,key,model,text){
   if(M.looksSecret(text))return[];
   try{
-    const out=await p.generate({key,model,system:EXTRACT,messages:[{role:'user',content:text}]});
+    const out=await M.withTimeout(p.generate({key,model,system:EXTRACT,messages:[{role:'user',content:text}]}),15000);
     const j=JSON.parse(out.replace(/^```(json)?/i,'').replace(/```$/,'').trim());
     if(!Array.isArray(j))return[];
     return j.filter(x=>typeof x==='string'&&x.length>3&&x.length<300&&!M.looksSecret(x)).slice(0,5);
@@ -50,7 +50,7 @@ module.exports=async(req,res)=>{
   const block=rec.items.length?'<keepsake_memory>\n'+rec.items.map(i=>'- '+i.text.slice(0,300)).join('\n')+'\n</keepsake_memory>':'';
   const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,saved:0,save:recording?'none':'off',saveReason:'ok'};
   try{
-    const reply=await p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs});
+    const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs}),30000);
     if(recording){
       const facts=await extract(p,key,model,lastUser);
       const w=await M.rememberMany(s.sub,facts);
@@ -58,6 +58,7 @@ module.exports=async(req,res)=>{
     }
     res.json({reply:sanitize(reply),provider:p.id,model,memory});
   }catch(e){
+    if(e.message==='timeout')return res.status(504).json({error:'The model did not answer in time. Try again.'});
     console.error('llm_error',p.id,e.status||e.message);
     res.status(502).json({error:'The selected model is temporarily unavailable. Try another model.'});
   }

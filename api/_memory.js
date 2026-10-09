@@ -31,12 +31,14 @@ const SECRET=/(sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_
 const looksSecret=t=>SECRET.test(String(t));
 const GRACE=8000;
 function withGrace(p){return Promise.race([p,new Promise(r=>setTimeout(()=>r(null),GRACE))])}
+// Rejects with 'timeout' if the promise takes longer than ms. Used so Walrus can never hold a reply open.
+function withTimeout(p,ms){let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))}
 async function recall(sub,query,limit=5){
   const g=await getClient();
   if(g.reason)return{status:'unavailable',reason:g.reason===REASON.sdk_failed?REASON.sdk_failed:REASON.not_configured,items:[]};
   if(!g.m)return{status:'unavailable',reason:REASON.not_configured,items:[]};
   try{
-    const r=await g.m.recall({query,limit,namespace:ns(sub)});
+    const r=await withTimeout(g.m.recall({query,limit,namespace:ns(sub)}),4000);
     const items=((r&&r.results)||[]).map(x=>({text:String(x.text||x.content||x.plaintext||''),created:x.created_at||x.createdAt||''})).filter(x=>x.text&&!looksSecret(x.text));
     return{status:'ok',reason:'ok',items};
   }catch(e){console.error('memwal_recall_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed,items:[]}}
@@ -48,7 +50,7 @@ async function rememberMany(sub,facts){
   const g=await getClient();
   if(g.reason||!g.m)return{status:'unavailable',saved:0,reason:g.reason||REASON.not_configured};
   try{
-    const jobs=await Promise.all(clean.map(f=>g.m.remember(f,ns(sub))));
+    const jobs=await withTimeout(Promise.all(clean.map(f=>g.m.remember(f,ns(sub)))),6000);
     const done=await withGrace(Promise.all(jobs.map(j=>g.m.waitForRememberJob(j.job_id).catch(()=>null))));
     const confirmed=done?done.filter(Boolean).length:0;
     return{status:confirmed===clean.length?'confirmed':'submitted',saved:clean.length,reason:'ok'};
@@ -60,4 +62,4 @@ async function health(){
   if(!g.m)return{status:'unavailable',reason:REASON.not_configured};
   try{await g.m.health();return{status:'ok',reason:'ok'}}catch(e){console.error('memwal_health_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed}}
 }
-module.exports={recall,rememberMany,health,looksSecret,ns,setFactory:f=>{factory=f}};
+module.exports={recall,rememberMany,health,looksSecret,ns,withTimeout,setFactory:f=>{factory=f}};

@@ -297,7 +297,7 @@ const LIMIT=200;
 let user=null,agent=null,demo=false,consent=false,mem=[],src='own',tr=[],hist=[],archive=[];
 
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
-function api(p,o){return fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o}).then(async r=>{let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}}).catch(()=>({ok:false,j:{error:'Network problem. Check your connection and try again.'}}))}
+function api(p,o){const c=new AbortController();const t=setTimeout(()=>c.abort(),70000);return fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:c.signal,...o}).then(async r=>{clearTimeout(t);let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}}).catch(e=>{clearTimeout(t);return{ok:false,j:{error:e&&e.name==='AbortError'?'No answer in time. Try again.':'Network problem. Check your connection and try again.'}}})}
 function show(v){$('#auth').hidden=v!=='auth';$('#app').hidden=v!=='app'}
 function setTab(t){$$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==t);$$('[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));if(t==='memory')renderMem();if(t==='prompted')renderPrompted();if(t==='feedback')renderFeedback()}
 
