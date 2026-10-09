@@ -22,7 +22,7 @@ async function client(){
 // Reason codes are safe to show users. Raw errors and config values are never returned.
 const REASON={not_configured:'not_configured',sdk_failed:'sdk_failed',relayer_failed:'relayer_failed'};
 async function getClient(){
-  try{return{m:await client()}}
+  try{return{m:await withTimeout(client(),4000)}}
   catch(e){console.error('memwal_sdk_load_failed',e&&e.name);return{reason:REASON.sdk_failed}}
 }
 const ns=sub=>'keepsake-'+crypto.createHash('sha256').update(String(sub)).digest('hex').slice(0,24);

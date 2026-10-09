@@ -53,7 +53,7 @@ module.exports=async(req,res)=>{
   const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,saved:0,save:recording?'none':'off',saveReason:'ok'};
   try{
     const t1=Date.now();
-    const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs}),30000);
+    const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs}),25000);
     memory.timing={memMs,modelMs:Date.now()-t1};
     if(recording){
       const t2=Date.now();
