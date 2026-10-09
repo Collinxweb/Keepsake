@@ -1,7 +1,16 @@
 const L=require('./_lib');
 const {P,SYSTEM,EXTRACT}=require('./_llm');
 const M=require('./_memory');
-// Ask the same model which facts are worth keeping, then filter them. Empty on any failure.
+// Requests to delete or forget are answered here, without calling the model, so the reply can't claim a deletion.
+const DELETE_RE=/\b(delete|forget|erase|clear|wipe|remove)\b[\s\S]*\b(memor\w*|everything|all (my|the) (facts|data|info\w*)|what you know)\b|forget (me|everything)/i;
+const DELETE_REPLY='Deleting memories is not available from chat yet. Nothing was deleted.';
+// Lines that describe saving, profiles, or internal machinery are dropped. Inline "I have saved that" is removed and the fact kept.
+const CLAIM_LINE=/(profile|cleared|deleted|keepsake_memory|memory block|updated your|using your saved|using your memor|saved memories to)/i;
+function sanitize(text){
+  const kept=String(text||'').split('\n').filter(l=>!CLAIM_LINE.test(l)).join('\n');
+  const out=kept.replace(/(^|[\n.!?]\s*)I (?:have |'ve )?(?:saved|noted|recorded|stored)\s+(?:that\s+)?(\S)/gi,(m,p,c)=>p+c.toUpperCase()).replace(/\n{3,}/g,'\n\n').trim();
+  return out||'I do not have saved information that answers that yet.';
+}
 async function extract(p,key,model,text){
   if(M.looksSecret(text))return[];
   try{
@@ -35,7 +44,8 @@ module.exports=async(req,res)=>{
   if(!msgs.length)return res.status(400).json({error:'No message.'});
   const lastUser=[...msgs].reverse().find(m=>m.role==='user').content;
   const recording=body.recording===true;
-  // Continuity: recall relevant memory before generating.
+  const noMemory={recalled:0,recall:'off',reason:'ok',saved:0,save:'off',saveReason:'ok'};
+  if(DELETE_RE.test(lastUser))return res.json({reply:DELETE_REPLY,provider:p.id,model,memory:noMemory});
   const rec=await M.recall(s.sub,lastUser,5);
   const block=rec.items.length?'<keepsake_memory>\n'+rec.items.map(i=>'- '+i.text.slice(0,300)).join('\n')+'\n</keepsake_memory>':'';
   const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,saved:0,save:recording?'none':'off',saveReason:'ok'};
@@ -46,9 +56,10 @@ module.exports=async(req,res)=>{
       const w=await M.rememberMany(s.sub,facts);
       memory.saved=w.saved;memory.save=w.status;memory.saveReason=w.reason;
     }
-    res.json({reply,provider:p.id,model,memory});
+    res.json({reply:sanitize(reply),provider:p.id,model,memory});
   }catch(e){
     console.error('llm_error',p.id,e.status||e.message);
     res.status(502).json({error:'The selected model is temporarily unavailable. Try another model.'});
   }
 };
+module.exports.sanitize=sanitize;

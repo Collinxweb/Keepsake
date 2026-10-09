@@ -105,6 +105,8 @@ textarea{flex:1 1 auto;min-width:0;width:100%;resize:none;border:1px solid var(-
 
 @media(max-width:759px){.topbar{flex-wrap:nowrap;padding:8px 10px;gap:6px}.topbar .lockup{min-width:0;gap:6px}.topbar .lockup b{font-size:1.02rem}.rw{display:none}.rs{display:inline}.pill{padding:4px 9px;font-size:.76rem;max-width:105px;overflow:hidden;text-overflow:ellipsis}.topbar img{width:26px;height:26px}}
 
+.ctool{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel)}.ctool select{flex:1;min-width:0;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+
 /* dialogs */
 .setcard label{display:grid;gap:4px;font-size:.9rem}
 .setcard input,.setcard select,.setcard textarea{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
@@ -166,6 +168,7 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
 
     <main>
       <section data-view="chat" style="min-height:0">
+        <div class="ctool"><button id="newchat" class="primary">New chat</button><select id="chatlist" aria-label="Previous chats" hidden></select></div>
         <div id="chat" aria-live="polite"></div>
         <div class="chips" id="chips"></div>
         <div class="composer">
@@ -287,33 +290,72 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
 </dialog>
 
 <script>
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let user=null, agent=null, demo=false, consent=false, mem=[], src='own', hist=[];
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const REASON={not_configured:'Memory is not set up on this server yet',sdk_failed:'The memory service failed to load on the server',relayer_failed:'The memory service is not responding right now'};
+const MODELS=[{v:'gemini|gemini-3.1-flash-lite',t:'Keepsake Gemini'},{v:'openrouter|openrouter/auto',t:'Keepsake OpenRouter'},{v:'openai|gpt-4o-mini',t:'My OpenAI key'},{v:'anthropic|claude-haiku-4-5-20251001',t:'My Claude key'}];
+const LIMIT=200;
+let user=null,agent=null,demo=false,consent=false,mem=[],src='own',tr=[],hist=[],archive=[];
 
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
-function add(role,text,tags){const d=el('div','m '+role,text);if(tags)d.appendChild(el('div','tags',tags));$('#chat').appendChild(d);d.scrollIntoView({block:'end'});return d}
+function api(p,o){return fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o}).then(async r=>{let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}}).catch(()=>({ok:false,j:{error:'Network problem. Check your connection and try again.'}}))}
 function show(v){$('#auth').hidden=v!=='auth';$('#app').hidden=v!=='app'}
-function setTab(t){
-  $$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==t);
-  $$('[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));
-  if(t==='memory')renderMem();
-  if(t==='prompted')renderPrompted();
-  if(t==='feedback')renderFeedback();
+function setTab(t){$$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==t);$$('[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));if(t==='memory')renderMem();if(t==='prompted')renderPrompted();if(t==='feedback')renderFeedback()}
+
+// Chat is kept on this device, per account, so a refresh doesn't clear it.
+const key=()=>user?'keepsake-chat:'+user.name:null;
+const clean=({el,...x})=>x;
+function snapshot(){const first=tr.find(x=>x.role==='me');return{title:(first?first.text:'Chat').slice(0,40),at:new Date().toISOString(),tr:tr.slice(-LIMIT).map(clean),hist:hist.slice(-40)}}
+function saveChat(){const k=key();if(!k)return;try{localStorage.setItem(k,JSON.stringify({tr:tr.slice(-LIMIT).map(clean),hist:hist.slice(-40),archive:archive.slice(0,10)}))}catch(e){}}
+function loadChat(){
+  tr=[];hist=[];archive=[];const k=key();if(!k)return;
+  try{const d=JSON.parse(localStorage.getItem(k)||'null');if(d){tr=d.tr||[];hist=d.hist||[];archive=d.archive||[]}}catch(e){}
+  tr.forEach(i=>{if(i.role==='bot'&&i.text==='Thinking...')i.text='This reply was interrupted by a page refresh. Send it again.'});
+  while(hist.length&&hist[hist.length-1].role==='user')hist.pop();
 }
-function api(p,o){
-  return fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o})
-    .then(async r=>{let j={};try{j=await r.json()}catch(e){}return{ok:r.ok,j}})
-    .catch(()=>({ok:false,j:{error:'Network problem. Check your connection and try again.'}}));
+function drawItem(item){
+  if(item.role==='promo'){
+    const c=el('div','promo');c.append(el('b','','Prompted'),el('div','muted','Import a prompt from prmpted.com with its author and link.'));
+    const b=el('button','','Import a prompt');b.style.marginTop='6px';b.onclick=()=>{setSrc('prompted');$('#handle').focus()};
+    c.append(b);item.el=c;return c;
+  }
+  const d=el('div','m '+(item.role==='me'?'me':'bot'),item.text||'');
+  if(item.tags)d.appendChild(el('div','tags',item.tags));
+  if(item.note)d.appendChild(el('div','tags',item.note));
+  item.el=d;return d;
 }
+function push(item){tr.push(item);const d=drawItem(item);$('#chat').appendChild(d);d.scrollIntoView({block:'end'});saveChat();return item}
+function add(role,text,tags,note){return push({role,text,tags:tags||'',note:note||''})}
+function update(item){if(!item.el)return;const d=drawItem(item);item.el.replaceWith(d);d.scrollIntoView({block:'end'});saveChat()}
+function renderChat(){const box=$('#chat');box.replaceChildren();tr.forEach(i=>box.appendChild(drawItem(i)));if(box.lastElementChild)box.lastElementChild.scrollIntoView({block:'end'})}
+function welcome(){
+  push({role:'bot',text:user?'Welcome back, '+user.name+'. What would you like to remember, explore or work on today?':'Welcome to Keepsake. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works.'});
+  push({role:'promo'});
+}
+function refreshChatList(){
+  const s=$('#chatlist');s.replaceChildren(new Option(archive.length?'Previous chats':'No previous chats',''));
+  archive.forEach((a,i)=>s.append(new Option(new Date(a.at).toLocaleDateString()+' · '+a.title,String(i))));
+  s.disabled=!archive.length;s.hidden=!user;
+}
+function newChat(){
+  if(user&&tr.some(x=>x.role==='me'))archive.unshift(snapshot());
+  tr=[];hist=[];renderChat();welcome();refreshChatList();saveChat();
+}
+function openArchive(i){
+  const a=archive.splice(i,1)[0];if(!a)return;
+  if(tr.some(x=>x.role==='me'))archive.unshift(snapshot());
+  tr=a.tr||[];hist=a.hist||[];renderChat();refreshChatList();saveChat();
+}
+
 function paint(){
   const agText=agent?agent.provider+' · '+agent.model:'';
   $('#recst').textContent=consent?'on':'off';
   $('#recpill').classList.toggle('on',consent);
   $('#pan-rec').textContent=consent?'Recording on':'Recording off';
-  $('#pan-recsub').textContent=consent?'New messages are saved on this device.':"Your conversations aren't saved.";
+  $('#pan-recsub').textContent=consent?(user?'New facts are saved to Walrus Memory.':'New messages are saved on this device.'):"Your conversations aren't saved.";
   $('#pan-toggle').textContent=consent?'Pause recording':'Turn on';
   $('#pan-count').textContent=user?'Stored on Walrus. See the Memory tab.':mem.length+' saved message'+(mem.length===1?'':'s')+' on this device';
-  $('#agpill').textContent=user?($('#msel').selectedOptions[0]?$('#msel').selectedOptions[0].textContent:'Agent'):(demo?'Scripted demo':'No agent');
+  const sel=$('#msel').selectedOptions[0];
+  $('#agpill').textContent=user?(sel?sel.textContent:'Agent'):(demo?'Scripted demo':'No agent');
   $('#pan-agent').textContent=agent?agText:'Not connected';
   $('#pan-conn').textContent=agent?'Change':'Connect';
   $('#acct').textContent=user?user.name.split(' ')[0]:'Sign in';
@@ -327,10 +369,70 @@ function paint(){
 }
 function setConsent(v){consent=v;paint();add('bot',v?'Recording is on. New messages will be saved until you pause it.':'Recording paused. Nothing new is saved.')}
 function toggleRec(){if(consent)setConsent(false);else $('#consent-dlg').showModal()}
-function openConnect(){
-  if(!user){demo=false;show('auth');$('#auth-err').textContent='Sign in to connect your agent.';return}
-  $('#agent-dlg').showModal();
+function openConnect(){if(!user){demo=false;show('auth');$('#auth-err').textContent='Sign in to connect your agent.';return}$('#agent-dlg').showModal()}
+function selProv(){return $('#msel').value.split('|')[0]}
+function setSrc(s){src=s;$$('.src button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s===s)));$('#handle').hidden=$('#link').hidden=s!=='prompted'}
+
+// Plain-language memory note under each reply. Only real server results are shown.
+function memNoteText(m){
+  if(!m)return'';
+  let t='';
+  if(m.recall==='unavailable')t=(REASON[m.reason]||'Memory is unavailable right now')+', so this reply was not personalized. ';
+  else if(m.recalled>0)t='Recalled '+m.recalled+' saved memor'+(m.recalled===1?'y':'ies')+'. ';
+  const same=m.save==='unavailable'&&m.reason&&m.reason===m.saveReason;
+  if(m.save==='confirmed')t+='Saved to memory.';
+  else if(m.save==='submitted')t+='Save submitted, confirmation pending.';
+  else if(m.save==='none')t+='Nothing new to save.';
+  else if(m.save==='unavailable')t+=same?'Nothing was saved.':(REASON[m.saveReason]||'Could not update memory')+'. Nothing was saved.';
+  return t.trim();
 }
+function isDelete(t){return/\b(delete|forget|erase|clear|wipe|remove)\b[\s\S]*\b(memor\w*|everything|all (my|the) (facts|data|info\w*)|what you know)\b|forget (me|everything)/i.test(t)}
+function breakdown(){
+  if(user)return'Prompt breakdown is not available yet. Imported prompts are not tracked separately on Walrus Memory.';
+  const p=mem.filter(e=>e.source==='prompted');
+  if(!consent&&!mem.length)return'Turn on recording to track prompts. Nothing is saved while recording is off.';
+  if(!p.length)return'No prompts from Prompted saved yet. Tag a prompt "From Prompted" and send it with recording on.';
+  let s='Prompt breakdown\nFrom Prompted: '+p.length;
+  p.forEach((e,i)=>{s+='\n'+(i+1)+'. '+e.text.slice(0,60)+(e.text.length>60?'...':'')+' | '+(e.author||'author not given')+(e.link?' | '+e.link:'')});
+  return s;
+}
+function reply(t){
+  const q=t.toLowerCase();
+  if(q.includes('breakdown'))return breakdown();
+  if(isDelete(t))return user?'Deleting memories is not available from chat yet. Nothing was deleted.':'Demo mode: nothing is stored, so there is nothing to delete.';
+  if(/record|saved|memory|consent/.test(q))return'Recording is '+(consent?'on':'off')+'. Chats are only saved after you opt in. You can pause or export them. Deleting from the app is not available yet.';
+  if(q.includes('what can you do'))return user?'I answer from your saved facts and this chat. Pick a model above. Memory needs recording on.':'Demo mode: replies are scripted. Log in to chat with a real model.';
+  return user?'Ask me anything. I will use your saved facts when they help.':'Demo reply. Log in to get real answers.';
+}
+function send(){
+  const t=$('#t').value.trim();if(!t)return;
+  const isCmd=t.toLowerCase().includes('breakdown');
+  let tag='';
+  if(!isCmd){
+    const entry={text:t,source:src,author:src==='prompted'?$('#handle').value.trim():'',link:src==='prompted'?$('#link').value.trim():'',at:new Date().toISOString()};
+    if(!user){if(consent){mem.push(entry);tag='saved on this device'}else tag='not saved'}
+    else if(!consent){tag='not saved'}
+    const parts=[];
+    if(src==='prompted')parts.push('From Prompted'+(entry.author?' · '+entry.author:''));
+    if(tag)parts.push(tag);
+    tag=parts.join(' · ');
+  }
+  add('me',t,tag);
+  $('#t').value='';$('#t').style.height='auto';paint();
+  if(isCmd||!user){setTimeout(()=>add('bot',reply(t)),350);return}
+  const prov=selProv();
+  if((prov==='openai'||prov==='anthropic')&&!(agent&&agent.provider===prov)){
+    add('bot','Connect your '+(prov==='openai'?'OpenAI':'Claude')+' API key to use this provider. Open Settings to connect it.');return;
+  }
+  hist.push({role:'user',content:t});
+  const w=add('bot','Thinking...');
+  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist,provider:prov,model:$('#msel').value.split('|')[1],recording:consent})}).then(({ok,j})=>{
+    if(ok){hist.push({role:'assistant',content:j.reply});w.text=j.reply;w.note=memNoteText(j.memory);update(w)}
+    else{hist.pop();w.text=j.error||'Something went wrong.';update(w)}
+    saveChat();
+  });
+}
+
 async function exportData(){
   let data={memories:mem,source:'this device only'};
   if(user){
@@ -345,19 +447,8 @@ async function exportData(){
 function wipe(){
   if(user){add('bot','Deleting Walrus memories is not available from the app yet. Nothing was deleted on the server.');return}
   if(!confirm('Delete all saved messages on this device?'))return;
-  const n=mem.length;mem=[];paint();renderMem();renderPrompted();
+  const n=mem.length;mem=[];paint();renderLocalMem();renderPrompted();
   add('bot','Deleted '+n+' saved message'+(n===1?'':'s')+'.');
-}
-const REASON={not_configured:'Memory is not set up on this server yet',sdk_failed:'The memory service failed to load on the server',relayer_failed:'The memory service is not responding right now'};
-function memNote(m){
-  let t='';
-  if(m.recall==='unavailable')t=(REASON[m.reason]||'Memory is unavailable right now')+', so this reply was not personalized. ';
-  else if(m.recalled>0)t='Used '+m.recalled+' saved memor'+(m.recalled===1?'y':'ies')+'. ';
-  if(m.save==='confirmed')t+='Saved to memory.';
-  else if(m.save==='submitted')t+='Save submitted, confirmation pending.';
-  else if(m.save==='none')t+='Nothing new to save.';
-  else if(m.save==='unavailable')t+=(REASON[m.saveReason]||'Could not update memory')+'. Nothing was saved.';
-  return el('div','tags',t.trim());
 }
 function renderMem(){
   if(!user){renderLocalMem();return}
@@ -381,62 +472,13 @@ function renderLocalMem(){
 }
 function renderPrompted(){
   const box=$('#plist');box.replaceChildren();
+  if(user){box.append(el('p','muted','Imported prompts are not tracked separately yet. Facts from them can be saved as chat facts when recording is on.'));return}
   const p=mem.filter(e=>e.source==='prompted');
-  if(!p.length){box.append(el('p','muted','No Prompted prompts saved yet.'));return}
+  if(!p.length){box.append(el('p','muted','No Prompted prompts saved on this device yet.'));return}
   p.slice().reverse().forEach(e=>{
     const c=el('div','item',e.text.length>140?e.text.slice(0,140)+'...':e.text);
     c.append(el('small','',(e.author||'Author not given')+(e.link?' · '+e.link:'')));
     box.append(c);
-  });
-}
-function breakdown(){
-  const p=mem.filter(e=>e.source==='prompted');
-  if(!consent&&!mem.length)return 'Turn on recording to track prompts. Nothing is saved while recording is off.';
-  if(!p.length)return 'No prompts from Prompted saved yet. Tag a prompt "From Prompted" and send it with recording on.';
-  let s='Prompt breakdown\nTotal saved: '+mem.length+' | From Prompted: '+p.length;
-  p.forEach((e,i)=>{s+='\n'+(i+1)+'. '+e.text.slice(0,60)+(e.text.length>60?'...':'')+' | '+(e.author||'author not given')+(e.link?' | '+e.link:'')});
-  return s;
-}
-function reply(t){
-  const q=t.toLowerCase();
-  if(q.includes('breakdown'))return breakdown();
-  if(/record|saved|memory|consent/.test(q))return 'Recording is '+(consent?'on':'off')+'. Chats are only saved after you opt in, and you can pause, export or delete them at any time.';
-  if(q.includes('what can you do'))return agent?'I am connected to your agent. I can keep a record of prompts you import from Prompted and send a breakdown when you ask.':'Demo mode: replies are scripted. Connect your agent in Settings to get real answers.';
-  return agent?'Your agent is connected.':'Demo reply. Connect your agent in Settings to get real answers.';
-}
-const MODELS=[
-  {v:'gemini|gemini-3.1-flash-lite',t:'Keepsake Gemini'},
-  {v:'openrouter|openrouter/auto',t:'Keepsake OpenRouter'},
-  {v:'openai|gpt-4o-mini',t:'My OpenAI key'},
-  {v:'anthropic|claude-haiku-4-5-20251001',t:'My Claude key'}
-];
-function selProv(){return $('#msel').value.split('|')[0]}
-function send(){
-  const t=$('#t').value.trim();if(!t)return;
-  const isCmd=t.toLowerCase().includes('breakdown');
-  let tag='';
-  if(!isCmd){
-    const entry={text:t,source:src,author:src==='prompted'?$('#handle').value.trim():'',link:src==='prompted'?$('#link').value.trim():'',at:new Date().toISOString()};
-    if(!user){ if(consent){mem.push(entry);tag='saved on this device'} else tag='not saved'; }
-    else if(!consent){ tag='not saved'; }
-    const parts=[];
-    if(src==='prompted')parts.push('From Prompted'+(entry.author?' · '+entry.author:''));
-    if(tag)parts.push(tag);
-    tag=parts.join(' · ');
-  }
-  add('me',t,tag);
-  $('#t').value='';$('#t').style.height='auto';paint();
-  if(isCmd||!user){setTimeout(()=>add('bot',reply(t)),350);return}
-  const prov=selProv();
-  if((prov==='openai'||prov==='anthropic')&&!(agent&&agent.provider===prov)){
-    add('bot','Connect your '+(prov==='openai'?'OpenAI':'Claude')+' API key to use this provider. Open Settings to connect it.');return;
-  }
-  hist.push({role:'user',content:t});
-  const w=add('bot','Thinking...');
-  api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist,provider:prov,model:$('#msel').value.split('|')[1],recording:consent})}).then(({ok,j})=>{
-    if(ok){hist.push({role:'assistant',content:j.reply});w.textContent=j.reply;if(j.memory)w.append(memNote(j.memory))}
-    else{hist.pop();w.textContent=j.error||'Something went wrong.'}
-    w.scrollIntoView({block:'end'});
   });
 }
 function renderFeedback(){
@@ -468,19 +510,6 @@ $('#fb-send').onclick=async()=>{
   ['model','tested','expected','actual','feedback','bug','improvement'].forEach(k=>$('#fb-'+k).value='');
   $('#fb-worked').value='';renderFeedback();
 };
-function addWelcome(){
-  add('bot',user?'Welcome back, '+user.name+'. What would you like to remember, explore or work on today?':'Welcome to Keepsake. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works.');
-  const c=el('div','promo');
-  c.append(el('b','','Prompted'),el('div','muted','Import a prompt from prmpted.com with its author and link.'));
-  const b=el('button','','Import a prompt');b.style.marginTop='6px';
-  b.onclick=()=>{setSrc('prompted');$('#handle').focus()};
-  c.append(b);$('#chat').appendChild(c);
-}
-function setSrc(s){
-  src=s;
-  $$('.src button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s===s)));
-  $('#handle').hidden=$('#link').hidden=s!=='prompted';
-}
 
 // Wiring
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
@@ -501,13 +530,13 @@ $('#mem-delete').onclick=wipe;
 $('#brk').onclick=()=>{setTab('chat');$('#t').value='/breakdown';send()};
 $('#theme').onclick=()=>{const light=document.documentElement.dataset.theme!=='light';document.documentElement.dataset.theme=light?'light':'dark';$('#theme').textContent=light?'Switch to dark mode':'Switch to light mode'};
 $('#acct').onclick=async()=>{
-  if(user){await api('/api/logout',{method:'POST'});user=agent=null;hist=[]}
-  demo=false;$('#chat').replaceChildren();show('auth');paint();
+  if(user){await api('/api/logout',{method:'POST'});user=agent=null}
+  demo=false;tr=[];hist=[];archive=[];$('#chat').replaceChildren();show('auth');paint();
 };
 $('#p-google').onclick=()=>location.href='/api/auth/google';
 $('#p-github').onclick=()=>location.href='/api/auth/github/start';
 $('#p-discord').onclick=()=>location.href='/api/auth/discord/start';
-$('#demo').onclick=()=>{demo=true;show('app');setTab('chat');addWelcome();paint()};
+$('#demo').onclick=()=>{demo=true;tr=[];hist=[];show('app');setTab('chat');welcome();paint()};
 $('#cc').onclick=()=>$('#agent-dlg').close();
 $('#cs').onclick=async()=>{
   const{ok,j}=await api('/api/connect',{method:'POST',body:JSON.stringify({provider:$('#prov').value,model:$('#mod').value,key:$('#key').value})});
@@ -515,21 +544,28 @@ $('#cs').onclick=async()=>{
   $('#key').value='';$('#agent-err').textContent='';agent=j.agent;hist=[];$('#agent-dlg').close();paint();
   add('bot','Agent connected. Your messages now go to your own agent.');
 };
+$('#newchat').onclick=newChat;
+$('#chatlist').onchange=e=>{if(e.target.value!=='')openArchive(Number(e.target.value))};
 $('#send').onclick=send;
 $('#t').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('#t').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
 ['What can you do?','Is my chat being saved?','/breakdown'].forEach(c=>{
   const b=el('button','',c);b.onclick=()=>{$('#t').value=c;send()};$('#chips').appendChild(b);
 });
-
 $('#msel').replaceChildren(...MODELS.map(m=>{const o=document.createElement('option');o.value=m.v;o.textContent=m.t;return o}));
+
 // Start
 (async()=>{
   const p=new URLSearchParams(location.search);
   const{ok,j}=await api('/api/me');
   if(ok){user=j.user;agent=j.agent}
-  if(user){show('app');setTab('chat');addWelcome()}
-  else{show('auth');if(p.get('login')==='failed')$('#auth-err').textContent='Login did not complete ('+(p.get('why')||'unknown')+'). Please try again.'}
+  if(user){
+    show('app');setTab('chat');loadChat();
+    if(tr.length){renderChat();refreshChatList()}else{welcome();refreshChatList()}
+  }else{
+    show('auth');
+    if(p.get('login')==='failed')$('#auth-err').textContent='Login did not complete ('+(p.get('why')||'unknown')+'). Please try again.';
+  }
   paint();
 })();
 </script>
