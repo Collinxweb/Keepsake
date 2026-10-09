@@ -311,7 +311,7 @@ function paint(){
   $('#pan-rec').textContent=consent?'Recording on':'Recording off';
   $('#pan-recsub').textContent=consent?'New messages are saved on this device.':"Your conversations aren't saved.";
   $('#pan-toggle').textContent=consent?'Pause recording':'Turn on';
-  $('#pan-count').textContent=mem.length+' saved message'+(mem.length===1?'':'s');
+  $('#pan-count').textContent=user?'Stored on Walrus. See the Memory tab.':mem.length+' saved message'+(mem.length===1?'':'s')+' on this device';
   $('#agpill').textContent=user?($('#msel').selectedOptions[0]?$('#msel').selectedOptions[0].textContent:'Agent'):(demo?'Scripted demo':'No agent');
   $('#pan-agent').textContent=agent?agText:'Not connected';
   $('#pan-conn').textContent=agent?'Change':'Connect';
@@ -330,12 +330,19 @@ function openConnect(){
   if(!user){demo=false;show('auth');$('#auth-err').textContent='Sign in to connect your agent.';return}
   $('#agent-dlg').showModal();
 }
-function exportData(){
-  const b=new Blob([JSON.stringify({memories:mem},null,2)],{type:'application/json'});
+async function exportData(){
+  let data={memories:mem,source:'this device only'};
+  if(user){
+    const{ok,j}=await api('/api/memory');
+    if(!ok||j.status!=='ok'){add('bot','Export is unavailable right now, so nothing was exported.');return}
+    data={memories:j.items,source:'Walrus Memory'};
+  }
+  const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=el('a');a.href=URL.createObjectURL(b);a.download='keepsake-data.json';a.click();URL.revokeObjectURL(a.href);
-  add('bot','Exported '+mem.length+' saved message'+(mem.length===1?'':'s')+'.');
+  add('bot','Exported '+data.memories.length+' saved message'+(data.memories.length===1?'':'s')+' from '+data.source+'.');
 }
 function wipe(){
+  if(user){add('bot','Deleting Walrus memories is not available from the app yet. Nothing was deleted on the server.');return}
   if(!confirm('Delete all saved messages on this device?'))return;
   const n=mem.length;mem=[];paint();renderMem();renderPrompted();
   add('bot','Deleted '+n+' saved message'+(n===1?'':'s')+'.');
@@ -347,6 +354,7 @@ function memNote(m){
   else if(m.recalled>0)t='Used '+m.recalled+' saved memor'+(m.recalled===1?'y':'ies')+'. ';
   if(m.save==='confirmed')t+='Saved to memory.';
   else if(m.save==='submitted')t+='Save submitted, confirmation pending.';
+  else if(m.save==='none')t+='Nothing new to save.';
   else if(m.save==='unavailable')t+=(REASON[m.saveReason]||'Could not update memory')+'. Nothing was saved.';
   return el('div','tags',t.trim());
 }
@@ -408,8 +416,12 @@ function send(){
   let tag='';
   if(!isCmd){
     const entry={text:t,source:src,author:src==='prompted'?$('#handle').value.trim():'',link:src==='prompted'?$('#link').value.trim():'',at:new Date().toISOString()};
-    if(consent){mem.push(entry);tag='saved'}else tag='not saved';
-    if(src==='prompted')tag='From Prompted'+(entry.author?' · '+entry.author:'')+' · '+tag;
+    if(!user){ if(consent){mem.push(entry);tag='saved on this device'} else tag='not saved'; }
+    else if(!consent){ tag='not saved'; }
+    const parts=[];
+    if(src==='prompted')parts.push('From Prompted'+(entry.author?' · '+entry.author:''));
+    if(tag)parts.push(tag);
+    tag=parts.join(' · ');
   }
   add('me',t,tag);
   $('#t').value='';$('#t').style.height='auto';paint();
