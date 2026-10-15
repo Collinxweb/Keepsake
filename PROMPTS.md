@@ -45,3 +45,7 @@ Connect Keepsake to Walrus Memory through the MemWal TypeScript SDK, on the serv
 ## Prompt 9: model list and memory diagnostics
 
 Show all providers in the model list and in Settings, with the shared Keepsake providers marked as needing no key. Replace the generic memory message with a plain reason (not configured, SDK failed to load, relayer not responding) and add a memory health check. Raw errors and credentials are never shown to users.
+
+## Prompt 10: Prompted library and a bookmarklet import
+
+Add a prompt library stored in its own Walrus namespace, separate from the facts the agent remembers. Users can save a prompt by pasting it, or by using a bookmarklet that reads the prompt text on a Prompted build page and hands it to Keepsake pre-filled. Fix Gemini answering general questions as if nothing was saved, add free-model selection for OpenRouter so no credits are required, give each provider failure a plain message, add a per-account rate limit, and warm the memory cache after login.

@@ -1,7 +1,16 @@
 {
   "functions": {
-    "api/chat.js": { "maxDuration": 60 },
-    "api/memory.js": { "maxDuration": 15 },
-    "api/feedback.js": { "maxDuration": 15 }
+    "api/chat.js": {
+      "maxDuration": 60
+    },
+    "api/memory.js": {
+      "maxDuration": 15
+    },
+    "api/feedback.js": {
+      "maxDuration": 15
+    },
+    "api/prompts.js": {
+      "maxDuration": 30
+    }
   }
 }

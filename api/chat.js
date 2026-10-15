@@ -11,6 +11,18 @@ function sanitize(text){
   const out=kept.replace(/(^|[\n.!?]\s*)I (?:have |'ve )?(?:saved|noted|recorded|stored)\s+(?:that\s+)?(\S)/gi,(m,p,c)=>p+c.toUpperCase()).replace(/\n{3,}/g,'\n\n').trim();
   return out||'I do not have saved information that answers that yet.';
 }
+// Per-account limit, per server instance: 60 messages in 10 minutes.
+const hits=new Map();
+function limited(sub){const now=Date.now(),a=(hits.get(sub)||[]).filter(t=>now-t<600000);if(a.length>=60){hits.set(sub,a);return true;}a.push(now);hits.set(sub,a);if(hits.size>5000)hits.clear();return false;}
+// Turn a provider failure into a plain message the user can act on. Raw provider text is never returned.
+function failMessage(p,e){
+  if(e.message==='timeout')return[504,'The model did not answer in time. Try again.'];
+  const st=e.status;
+  if(st===402)return[502,p.id==='openrouter'?'Keepsake OpenRouter has no credits left right now. Try Keepsake Gemini.':'This provider reports no credits left.'];
+  if(st===429)return[429,'This model has hit its usage limit for now. Try another model, or try again in a minute.'];
+  if(st===401||st===403)return[502,p.credentialMode==='user'?'Your '+p.name+' key was rejected. Reconnect it in Settings.':'This Keepsake provider is temporarily unavailable.'];
+  return[502,'The selected model is temporarily unavailable. Try another model.'];
+}
 async function extract(p,key,model,text){
   if(M.looksSecret(text))return[];
   try{
@@ -26,6 +38,7 @@ module.exports=async(req,res)=>{
   const logDone=(status,extra)=>console.log('chat_done',JSON.stringify({status,totalMs:Date.now()-T0,...extra}));
   const s=L.session(req);
   if(!s)return res.status(401).json({error:'Log in to chat.'});
+  if(limited(s.sub))return res.status(429).json({error:'You are sending messages very fast. Wait a few minutes and try again.'});
   const body=req.body||{};
   const p=P[body.provider];
   if(!p)return res.status(400).json({error:'Choose a provider.'});
@@ -55,7 +68,9 @@ module.exports=async(req,res)=>{
   const memory={recalled:rec.items.length,recall:rec.status,reason:rec.reason,cached:rec.cached,saved:0,save:recording?'none':'off',saveReason:'ok'};
   try{
     const t1=Date.now();
-    const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs}),25000);
+    const meta={};
+    const reply=await M.withTimeout(p.generate({key,model,system:SYSTEM+(block?'\n\n'+block:''),messages:msgs,meta}),25000);
+    if(meta.model)model=meta.model;
     memory.timing={memMs,modelMs:Date.now()-t1};
     if(recording){
       const t2=Date.now();
@@ -67,10 +82,10 @@ module.exports=async(req,res)=>{
     logDone(200,{provider:p.id,memMs,modelMs:memory.timing&&memory.timing.modelMs,recalled:memory.recalled,save:memory.save});
     res.json({reply:sanitize(reply),provider:p.id,model,memory});
   }catch(e){
-    logDone(e.message==='timeout'?504:502,{provider:p.id,memMs,reason:e.message==='timeout'?'model_timeout':'provider_error'});
-    if(e.message==='timeout')return res.status(504).json({error:'The model did not answer in time. Try again.'});
-    console.error('llm_error',p.id,e.status||e.message);
-    res.status(502).json({error:'The selected model is temporarily unavailable. Try another model.'});
+    const [code,msg]=failMessage(p,e);
+    logDone(code,{provider:p.id,memMs,reason:e.message==='timeout'?'model_timeout':'provider_error',status:e.status||null});
+    if(e.message!=='timeout')console.error('llm_error',p.id,e.status||e.message);
+    res.status(code).json({error:msg});
   }
 };
 module.exports.sanitize=sanitize;

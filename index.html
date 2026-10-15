@@ -194,9 +194,26 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
       </section>
 
       <section data-view="prompted" class="sec" hidden>
-        <h2>Prompted</h2>
-        <p class="muted">Prompts you imported from prmpted.com, tagged with their author and link. Import them from the chat composer using "From Prompted".</p>
-        <div><button id="brk" class="primary">Get a breakdown</button></div>
+        <h2>Prompted library</h2>
+        <p class="muted">Prompts you save from prmpted.com, or from your own chats, kept apart from what the agent remembers about you.</p>
+        <div class="setcard">
+          <b>Save from Prompted in one tap</b>
+          <p class="muted" style="margin:4px 0">Drag this link to your bookmarks bar, or add it as a bookmark and paste the address below. Open it while viewing a build on prmpted.com.</p>
+          <a id="pbm" href="#" class="prov" style="justify-content:center;width:100%" onclick="return false">Save to Keepsake</a>
+          <button id="pbm-copy" style="margin-top:8px">Copy bookmarklet link</button>
+        </div>
+        <div class="setcard">
+          <b id="padd-title">Save a prompt</b>
+          <label>Title <input id="padd-title-f" placeholder="Optional, taken from the text if left empty"></label>
+          <label>Prompt text <textarea id="padd-text" rows="4" placeholder="Paste the prompt"></textarea></label>
+          <label>Author <input id="padd-author" placeholder="@name (optional)"></label>
+          <label>Link <input id="padd-url" placeholder="https://prmpted.com/... (optional)"></label>
+          <label>Tags <input id="padd-tags" placeholder="design, 3d (optional)"></label>
+          <div class="err" id="padd-err" role="alert"></div>
+          <button class="primary" id="padd-save">Save prompt</button>
+          <small class="muted" id="padd-status"></small>
+        </div>
+        <div class="row"><input class="field" id="psearch" placeholder="Search your saved prompts"><button id="psearch-go">Search</button></div>
         <div id="plist" style="display:grid;gap:8px"></div>
       </section>
 
@@ -389,24 +406,32 @@ function memNoteText(m){
   return t.trim();
 }
 function isDelete(t){return/\b(delete|forget|erase|clear|wipe|remove)\b[\s\S]*\b(memor\w*|everything|all (my|the) (facts|data|info\w*)|what you know)\b|forget (me|everything)/i.test(t)}
-function breakdown(){
-  if(user)return'Prompt breakdown is not available yet. Imported prompts are not tracked separately on Walrus Memory.';
-  const p=mem.filter(e=>e.source==='prompted');
-  if(!consent&&!mem.length)return'Turn on recording to track prompts. Nothing is saved while recording is off.';
-  if(!p.length)return'No prompts from Prompted saved yet. Tag a prompt "From Prompted" and send it with recording on.';
-  let s='Prompt breakdown\nFrom Prompted: '+p.length;
-  p.forEach((e,i)=>{s+='\n'+(i+1)+'. '+e.text.slice(0,60)+(e.text.length>60?'...':'')+' | '+(e.author||'author not given')+(e.link?' | '+e.link:'')});
+async function breakdown(){
+  if(!user){
+    const p=mem.filter(e=>e.source==='prompted');
+    if(!consent&&!mem.length)return'Turn on recording to track prompts. Nothing is saved while recording is off.';
+    if(!p.length)return'No prompts from Prompted saved yet. Tag a prompt "From Prompted" and send it with recording on.';
+    let s='Prompt breakdown\nFrom Prompted: '+p.length;
+    p.forEach((e,i)=>{s+='\n'+(i+1)+'. '+e.text.slice(0,60)+(e.text.length>60?'...':'')+' | '+(e.author||'author not given')+(e.link?' | '+e.link:'')});
+    return s;
+  }
+  const{ok,j}=await api('/api/prompts');
+  if(!ok||j.status!=='ok')return'Your prompt library is unavailable right now.';
+  if(!j.items.length)return'No prompts saved yet. Use Save to Keepsake on a Prompted page, or save one from the Prompted tab.';
+  let s='Prompt breakdown\nSaved prompts: '+j.items.length;
+  j.items.slice(0,10).forEach((p,i)=>{s+='\n'+(i+1)+'. '+p.title+(p.author?' | '+p.author:'')+(p.url?' | '+p.url:'')});
+  if(j.items.length>10)s+='\n...and '+(j.items.length-10)+' more. See the Prompted tab.';
   return s;
 }
-function reply(t){
+async function reply(t){
   const q=t.toLowerCase();
-  if(q.includes('breakdown'))return breakdown();
+  if(q.includes('breakdown'))return await breakdown();
   if(isDelete(t))return user?'Deleting memories is not available from chat yet. Nothing was deleted.':'Demo mode: nothing is stored, so there is nothing to delete.';
   if(/record|saved|memory|consent/.test(q))return'Recording is '+(consent?'on':'off')+'. Chats are only saved after you opt in. You can pause or export them. Deleting from the app is not available yet.';
   if(q.includes('what can you do'))return user?'I answer from your saved facts and this chat. Pick a model above. Memory needs recording on.':'Demo mode: replies are scripted. Log in to chat with a real model.';
   return user?'Ask me anything. I will use your saved facts when they help.':'Demo reply. Log in to get real answers.';
 }
-function send(){
+async function send(){
   const t=$('#t').value.trim();if(!t)return;
   const isCmd=t.toLowerCase().includes('breakdown');
   let tag='';
@@ -421,7 +446,7 @@ function send(){
   }
   add('me',t,tag);
   $('#t').value='';$('#t').style.height='auto';paint();
-  if(isCmd||!user){setTimeout(()=>add('bot',reply(t)),350);return}
+  if(isCmd||!user){const r=await reply(t);setTimeout(()=>add('bot',r),350);return}
   const prov=selProv();
   if((prov==='openai'||prov==='anthropic')&&!(agent&&agent.provider===prov)){
     add('bot','Connect your '+(prov==='openai'?'OpenAI':'Claude')+' API key to use this provider. Open Settings to connect it.');return;
@@ -472,16 +497,36 @@ function renderLocalMem(){
     box.append(c);
   });
 }
+function promptCard(p){
+  const c=el('div','item');
+  c.append(el('b','',p.title));
+  const body=p.text.length>220?p.text.slice(0,220)+'...':p.text;
+  const d=el('div','',body);d.style.whiteSpace='pre-wrap';d.style.margin='4px 0';c.append(d);
+  c.append(el('small','',[p.author,p.url,new Date(p.savedAt).toLocaleDateString()].filter(Boolean).join(' · ')));
+  const row=el('div','row');row.style.marginTop='6px';
+  const use=el('button','','Use in chat');use.onclick=()=>{setTab('chat');setSrc('prompted');$('#t').value=p.text;if(p.author)$('#handle').value=p.author;if(p.url)$('#link').value=p.url};
+  const hide=el('button','','Hide');hide.onclick=async()=>{if(!confirm('Hide this prompt? It stays on Walrus but will not show here.'))return;await api('/api/prompts',{method:'POST',body:JSON.stringify({action:'hide',id:p.id})});renderPrompted()};
+  row.append(use,hide);c.append(row);
+  return c;
+}
 function renderPrompted(){
   const box=$('#plist');box.replaceChildren();
-  if(user){box.append(el('p','muted','Imported prompts are not tracked separately yet. Facts from them can be saved as chat facts when recording is on.'));return}
-  const p=mem.filter(e=>e.source==='prompted');
-  if(!p.length){box.append(el('p','muted','No Prompted prompts saved on this device yet.'));return}
-  p.slice().reverse().forEach(e=>{
-    const c=el('div','item',e.text.length>140?e.text.slice(0,140)+'...':e.text);
-    c.append(el('small','',(e.author||'Author not given')+(e.link?' · '+e.link:'')));
-    box.append(c);
+  if(!user){box.append(el('p','muted','Log in to save prompts to your Walrus library. On this device only, you can still tag a chat message "From Prompted".'));return}
+  box.append(el('p','muted','Loading...'));
+  api('/api/prompts').then(({ok,j})=>{
+    box.replaceChildren();
+    if(!ok){box.append(el('p','muted',j.error||'Your prompt library is unavailable right now.'));return}
+    if(j.status!=='ok'){box.append(el('p','muted',(REASON[j.reason]||'Your prompt library is unavailable right now')+'.'));return}
+    if(!j.items.length){box.append(el('p','muted','Nothing saved yet. Use Save to Keepsake on a Prompted page, or add one above.'));return}
+    j.items.forEach(p=>box.append(promptCard(p)));
   });
+}
+async function savePrompt(d,statusEl){
+  if(statusEl)statusEl.textContent='Saving...';
+  const{ok,j}=await api('/api/prompts',{method:'POST',body:JSON.stringify({action:'save',...d})});
+  if(!ok){if(statusEl)statusEl.textContent='';return{ok:false,error:j.error||'Could not save.'}}
+  if(statusEl)statusEl.textContent='Saved.';
+  return{ok:true,item:j.item};
 }
 function renderFeedback(){
   const box=$('#fb-list');box.replaceChildren(el('p','muted','Loading...'));
@@ -529,7 +574,6 @@ $('#set-export').onclick=exportData;
 $('#set-delete').onclick=wipe;
 $('#mem-export').onclick=exportData;
 $('#mem-delete').onclick=wipe;
-$('#brk').onclick=()=>{setTab('chat');$('#t').value='/breakdown';send()};
 $('#theme').onclick=()=>{const light=document.documentElement.dataset.theme!=='light';document.documentElement.dataset.theme=light?'light':'dark';$('#theme').textContent=light?'Switch to dark mode':'Switch to light mode'};
 $('#acct').onclick=async()=>{
   if(user){await api('/api/logout',{method:'POST'});user=agent=null}
@@ -556,6 +600,46 @@ $('#t').addEventListener('input',e=>{e.target.style.height='auto';e.target.style
 });
 $('#msel').replaceChildren(...MODELS.map(m=>{const o=document.createElement('option');o.value=m.v;o.textContent=m.t;return o}));
 
+
+function b64decode(s){s=s.split('-').join('+').split('_').join('/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return new TextDecoder().decode(bytes);}
+function wireBookmarklet(){
+  const code="(function(){var cap=null,cw=null,step=0;try{cw=navigator.clipboard.writeText.bind(navigator.clipboard);navigator.clipboard.writeText=function(t){cap=String(t);return Promise.resolve();};}catch(e){}function onCopy(){try{var s=String(window.getSelection()||'');var a=document.activeElement;if(a&&typeof a.value==='string'&&typeof a.selectionStart==='number'){s=a.value.slice(a.selectionStart,a.selectionEnd)||s;}if(s&&!cap){cap=s;}}catch(e){}}document.addEventListener('copy',onCopy,true);function txt(e){return String(e.innerText||e.textContent||'').trim();}function deep(e,re){var c=e;while(c.children.length>0){var nx=null;for(var j=0;j<c.children.length;j++){if(re.test(txt(c.children[j]))){nx=c.children[j];break;}}if(!nx){break;}c=nx;}return c;}function find(re,max){var sels=['button,a,summary,[role=button]','div,span,p,li'];for(var k=0;k<sels.length;k++){var l=document.querySelectorAll(sels[k]);for(var i=0;i<l.length;i++){var t=txt(l[i]);if(t.length>0&&t.length<max&&re.test(t)){return deep(l[i],re);}}}return null;}function meta(){var og=document.querySelector('meta[property=\"og:title\"]');var h=document.querySelector('h1,h2');var au='';var a=document.querySelectorAll('a');for(var i=0;i<a.length;i++){var t=txt(a[i]);if(/^@[A-Za-z0-9_.-]{2,30}$/.test(t)){au=t;break;}}return{title:(og&&og.content)||(h&&txt(h))||document.title,author:au,url:location.href};}function pick(root){var best='',l=root.querySelectorAll('pre,code,div,p,span');for(var i=0;i<l.length;i++){var e=l[i],f='';try{f=getComputedStyle(e).fontFamily||'';}catch(x){}var t=txt(e);var mono=e.tagName==='PRE'||e.tagName==='CODE'||/mono|courier|consolas/i.test(f);if(mono&&t.length>30&&t.length>best.length&&e.children.length<3){best=t;}}return best;}function b64(o){var u=new TextEncoder().encode(JSON.stringify(o));var s='';for(var i=0;i<u.length;i++){s+=String.fromCharCode(u[i]);}return btoa(s).split('+').join('-').split('/').join('_').split('=').join('');}function finish(){if(cw){try{navigator.clipboard.writeText=cw;}catch(e){}}document.removeEventListener('copy',onCopy,true);var text=cap;if(!text){var anchor=find(/copy\\s*prompt/i,40)||find(/prompt\\(s\\)/i,70);var root=anchor;for(var i=0;i<7&&root&&root.parentElement;i++){root=root.parentElement;var b=pick(root);if(b){text=b;break;}}if(!text){text=pick(document.body);}}if(!text){alert('Keepsake could not find a prompt on this page. Open the prompts section, or tap copy prompts and paste it into Keepsake.');return;}var m=meta();var d={t:String(m.title||'').slice(0,120),u:/^https:/.test(m.url)?m.url.slice(0,300):'',a:m.author||'',x:text.slice(0,20000)};location.assign('__ORIGIN__/'+String.fromCharCode(35)+'save='+b64(d));}function go(){var cb=find(/copy\\s*prompt/i,40);if(!cb&&step===0){var tg=find(/prompt\\(s\\)/i,70);if(tg){tg.click();step=1;setTimeout(go,700);return;}}var rm=find(/^read\\s*more/i,20);if(rm){rm.click();}setTimeout(function(){var c2=find(/copy\\s*prompt/i,40);if(c2){c2.click();}setTimeout(finish,800);},rm?600:60);}go();})();";
+  const href='javascript:'+code.split('__ORIGIN__').join(location.origin);
+  const a=$('#pbm');if(a){a.href=href;a.addEventListener('click',e=>e.preventDefault());}
+  const cb=$('#pbm-copy');if(cb)cb.onclick=async()=>{try{await navigator.clipboard.writeText(href);cb.textContent='Copied. Paste it as a bookmark\'s address.'}catch(e){prompt('Copy this link and paste it as a bookmark\'s address:',href)}};
+}
+async function handleIncomingSave(){
+  const h=location.hash;
+  if(!h.startsWith('#save='))return;
+  history.replaceState(null,'',location.pathname+location.search);
+  let d;try{d=JSON.parse(b64decode(h.slice(6)))}catch(e){return}
+  setTab('prompted');
+  if(!user){show('auth');$('#auth-err').textContent='Log in first, then use Save to Keepsake again on the Prompted page.';return}
+  $('#padd-title-f').value=d.t||'';$('#padd-text').value=d.x||'';$('#padd-author').value=d.a||'';$('#padd-url').value=d.u||'';
+  const r=await savePrompt({title:d.t,text:d.x,author:d.a,url:d.u},$('#padd-status'));
+  if(r.ok){$('#padd-text').value='';$('#padd-title-f').value='';$('#padd-author').value='';$('#padd-url').value='';$('#padd-err').textContent='';renderPrompted()}
+  else $('#padd-err').textContent=r.error;
+}
+$('#padd-save').onclick=async()=>{
+  $('#padd-err').textContent='';
+  const text=$('#padd-text').value.trim();
+  if(text.length<20){$('#padd-err').textContent='Paste the full prompt text (at least 20 characters).';return}
+  const r=await savePrompt({title:$('#padd-title-f').value,text,author:$('#padd-author').value,url:$('#padd-url').value,tags:$('#padd-tags').value},$('#padd-status'));
+  if(!r.ok){$('#padd-err').textContent=r.error;return}
+  ['padd-title-f','padd-text','padd-author','padd-url','padd-tags'].forEach(id=>$('#'+id).value='');
+  renderPrompted();
+};
+$('#psearch-go').onclick=async()=>{
+  const box=$('#plist');box.replaceChildren(el('p','muted','Searching...'));
+  const{ok,j}=await api('/api/prompts?q='+encodeURIComponent($('#psearch').value.trim()));
+  box.replaceChildren();
+  if(!ok||j.status!=='ok'){box.append(el('p','muted','Search is unavailable right now.'));return}
+  if(!j.items.length){box.append(el('p','muted','No matching prompts.'));return}
+  j.items.forEach(p=>box.append(promptCard(p)));
+};
+$('#psearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#psearch-go').click()}});
+wireBookmarklet();
+
 // Start
 (async()=>{
   const p=new URLSearchParams(location.search);
@@ -564,6 +648,8 @@ $('#msel').replaceChildren(...MODELS.map(m=>{const o=document.createElement('opt
   if(user){
     show('app');setTab('chat');loadChat();
     if(tr.length){renderChat();refreshChatList()}else{welcome();refreshChatList()}
+    api('/api/memory?warm=1');
+    await handleIncomingSave();
   }else{
     show('auth');
     if(p.get('login')==='failed')$('#auth-err').textContent='Login did not complete ('+(p.get('why')||'unknown')+'). Please try again.';

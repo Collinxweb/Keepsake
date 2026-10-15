@@ -45,7 +45,7 @@ async function recall(sub,query,limit=5){
 }
 // Short per-account cache of recalled facts. Walrus lookups are the slowest step, so a chat's later messages reuse them.
 // Cache is per server instance and per account. Saving a fact clears the account's cache.
-const CACHE_MS=180000;
+const CACHE_MS=600000;
 const cache=new Map();
 async function recallForChat(sub){
   const hit=cache.get(sub);
@@ -68,10 +68,33 @@ async function rememberMany(sub,facts){
     return{status:confirmed===clean.length?'confirmed':'submitted',saved:clean.length,reason:'ok'};
   }catch(e){console.error('memwal_remember_failed',e&&e.name);return{status:'unavailable',saved:0,reason:REASON.relayer_failed}}
 }
+// Namespaced helpers used by the prompt library. Prompts live in their own namespaces, apart from the facts the agent recalls.
+const KNOWN_SECRET=/(sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
+const hasKnownSecret=t=>KNOWN_SECRET.test(String(t));
+async function recallNs(nsName,query,limit=20){
+  const g=await getClient();
+  if(g.reason)return{status:'unavailable',reason:g.reason,items:[]};
+  if(!g.m)return{status:'unavailable',reason:REASON.not_configured,items:[]};
+  try{
+    const r=await withTimeout(g.m.recall({query,limit,namespace:nsName}),9000);
+    const items=((r&&r.results)||[]).map(x=>({text:String(x.text||x.content||x.plaintext||''),created:x.created_at||x.createdAt||''})).filter(x=>x.text&&!hasKnownSecret(x.text));
+    return{status:'ok',reason:'ok',items};
+  }catch(e){console.error('memwal_recall_ns_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed,items:[]}}
+}
+async function rememberNs(nsName,text){
+  if(hasKnownSecret(text))return{status:'rejected',reason:'secret'};
+  const g=await getClient();
+  if(g.reason||!g.m)return{status:'unavailable',reason:g.reason||REASON.not_configured};
+  try{
+    const job=await withTimeout(g.m.remember(text,nsName),8000);
+    const done=await withGrace(g.m.waitForRememberJob(job.job_id).catch(()=>null));
+    return{status:done?'confirmed':'submitted',reason:'ok'};
+  }catch(e){console.error('memwal_remember_ns_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed}}
+}
 async function health(){
   const g=await getClient();
   if(g.reason)return{status:'unavailable',reason:g.reason};
   if(!g.m)return{status:'unavailable',reason:REASON.not_configured};
   try{await g.m.health();return{status:'ok',reason:'ok'}}catch(e){console.error('memwal_health_failed',e&&e.name);return{status:'unavailable',reason:REASON.relayer_failed}}
 }
-module.exports={recall,recallForChat,rememberMany,health,looksSecret,ns,withTimeout,setFactory:f=>{factory=f}};
+module.exports={recall,recallNs,rememberNs,recallForChat,rememberMany,health,looksSecret,hasKnownSecret,ns,withTimeout,setFactory:f=>{factory=f}};
