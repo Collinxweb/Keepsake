@@ -1,6 +1,7 @@
 const L=require('./_lib');
 const {P,SYSTEM,EXTRACT}=require('./_llm');
 const M=require('./_memory');
+const PR=require('./prompts');
 // Requests to delete or forget are answered here, without calling the model, so the reply can't claim a deletion.
 const DELETE_RE=/\b(delete|forget|erase|clear|wipe|remove)\b[\s\S]*\b(memor\w*|everything|all (my|the) (facts|data|info\w*)|what you know)\b|forget (me|everything)/i;
 const DELETE_REPLY='Deleting memories is not available from chat yet. Nothing was deleted.';
@@ -59,6 +60,18 @@ module.exports=async(req,res)=>{
   if(!msgs.length)return res.status(400).json({error:'No message.'});
   const lastUser=[...msgs].reverse().find(m=>m.role==='user').content;
   const recording=body.recording===true;
+
+  // "build prompt 6" or "my saved prompt about X" pulls a saved prompt from the library and runs it as this turn's task.
+  let usedPrompt=null;
+  const pr=await PR.resolvePrompt(s.sub,lastUser).catch(()=>({item:null}));
+  if(pr.requestedNumber&&!pr.item){
+    const why=pr.unavailable?'Your prompt library is unavailable right now.':('I could not find prompt #'+pr.requestedNumber+' in your library. Check the Prompted tab for the right number.');
+    return res.json({reply:why,provider:p.id,model,memory:{recalled:0,recall:'off',reason:'ok',saved:0,save:'off',saveReason:'ok'}});
+  }
+  if(pr.item){
+    usedPrompt={id:pr.item.id,number:pr.item.number,title:pr.item.title};
+    msgs[msgs.length-1]={role:'user',content:pr.item.text};
+  }
   const noMemory={recalled:0,recall:'off',reason:'ok',saved:0,save:'off',saveReason:'ok'};
   if(DELETE_RE.test(lastUser))return res.json({reply:DELETE_REPLY,provider:p.id,model,memory:noMemory});
   const t0=Date.now();
@@ -80,7 +93,7 @@ module.exports=async(req,res)=>{
       memory.saved=w.saved;memory.save=w.status;memory.saveReason=w.reason;
     }
     logDone(200,{provider:p.id,memMs,modelMs:memory.timing&&memory.timing.modelMs,recalled:memory.recalled,save:memory.save});
-    res.json({reply:sanitize(reply),provider:p.id,model,memory});
+    res.json({reply:sanitize(reply),provider:p.id,model,memory,usedPrompt});
   }catch(e){
     const [code,msg]=failMessage(p,e);
     logDone(code,{provider:p.id,memMs,reason:e.message==='timeout'?'model_timeout':'provider_error',status:e.status||null});

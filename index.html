@@ -107,6 +107,9 @@ textarea{flex:1 1 auto;min-width:0;width:100%;resize:none;border:1px solid var(-
 
 .ctool{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel)}.ctool select{flex:1;min-width:0;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 
+.plogo{display:flex;align-items:center;gap:10px;color:var(--acc);margin-bottom:6px}
+.plogo h2{color:var(--ink)}
+
 /* dialogs */
 .setcard label{display:grid;gap:4px;font-size:.9rem}
 .setcard input,.setcard select,.setcard textarea{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
@@ -194,21 +197,15 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
       </section>
 
       <section data-view="prompted" class="sec" hidden>
-        <h2>Prompted library</h2>
-        <p class="muted">Prompts you save from prmpted.com, or from your own chats, kept apart from what the agent remembers about you.</p>
-        <div class="setcard">
-          <b>Save from Prompted in one tap</b>
-          <p class="muted" style="margin:4px 0">Drag this link to your bookmarks bar, or add it as a bookmark and paste the address below. Open it while viewing a build on prmpted.com.</p>
-          <a id="pbm" href="#" class="prov" style="justify-content:center;width:100%" onclick="return false">Save to Keepsake</a>
-          <button id="pbm-copy" style="margin-top:8px">Copy bookmarklet link</button>
+        <div class="plogo">
+          <svg width="28" height="28" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="40" r="32" fill="none" stroke="currentColor" stroke-width="11"/><rect x="38" y="28" width="24" height="24" rx="6" fill="currentColor"/><path d="M27 40 L27 92" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round"/></svg>
+          <h2 style="margin:0">Prompted library</h2>
         </div>
+        <p class="muted">Paste a prompt from <a href="https://prmpted.com" target="_blank" rel="noopener">prmpted.com</a>, or from anywhere. Gemini names it so it's easy to find later. Each one gets a number, so you can say "build prompt 6" in chat and your agent runs it, or ask for "my saved prompt about X" and it finds it by meaning.</p>
         <div class="setcard">
-          <b id="padd-title">Save a prompt</b>
-          <label>Title <input id="padd-title-f" placeholder="Optional, taken from the text if left empty"></label>
+          <b>Save a prompt</b>
+          <label>Title (optional) <input id="padd-title-f" placeholder="Leave empty and Gemini will name it"></label>
           <label>Prompt text <textarea id="padd-text" rows="4" placeholder="Paste the prompt"></textarea></label>
-          <label>Author <input id="padd-author" placeholder="@name (optional)"></label>
-          <label>Link <input id="padd-url" placeholder="https://prmpted.com/... (optional)"></label>
-          <label>Tags <input id="padd-tags" placeholder="design, 3d (optional)"></label>
           <div class="err" id="padd-err" role="alert"></div>
           <button class="primary" id="padd-save">Save prompt</button>
           <small class="muted" id="padd-status"></small>
@@ -454,7 +451,11 @@ async function send(){
   hist.push({role:'user',content:t});
   const w=add('bot','Thinking...');
   api('/api/chat',{method:'POST',body:JSON.stringify({messages:hist,provider:prov,model:$('#msel').value.split('|')[1],recording:consent})},40000).then(({ok,j})=>{
-    if(ok){hist.push({role:'assistant',content:j.reply});w.text=j.reply;w.note=memNoteText(j.memory);update(w)}
+    if(ok){
+      hist.push({role:'assistant',content:j.reply});w.text=j.reply;
+      const used=j.usedPrompt?'Used saved prompt #'+j.usedPrompt.number+': '+j.usedPrompt.title+'. ':'';
+      w.note=(used+memNoteText(j.memory)).trim();update(w);
+    }
     else{hist.pop();w.text=j.error||'Something went wrong.';update(w)}
     saveChat();
   });
@@ -499,12 +500,14 @@ function renderLocalMem(){
 }
 function promptCard(p){
   const c=el('div','item');
-  c.append(el('b','',p.title));
+  const head=el('div','');head.style.cssText='display:flex;gap:8px;align-items:baseline';
+  head.append(el('span','badge','#'+p.number));head.append(el('b','',p.title));
+  c.append(head);
   const body=p.text.length>220?p.text.slice(0,220)+'...':p.text;
   const d=el('div','',body);d.style.whiteSpace='pre-wrap';d.style.margin='4px 0';c.append(d);
-  c.append(el('small','',[p.author,p.url,new Date(p.savedAt).toLocaleDateString()].filter(Boolean).join(' · ')));
+  c.append(el('small','','Saved '+new Date(p.savedAt).toLocaleDateString()+' · say "build prompt '+p.number+'" in chat'));
   const row=el('div','row');row.style.marginTop='6px';
-  const use=el('button','','Use in chat');use.onclick=()=>{setTab('chat');setSrc('prompted');$('#t').value=p.text;if(p.author)$('#handle').value=p.author;if(p.url)$('#link').value=p.url};
+  const use=el('button','','Use in chat');use.onclick=()=>{setTab('chat');setSrc('own');$('#t').value='build prompt '+p.number};
   const hide=el('button','','Hide');hide.onclick=async()=>{if(!confirm('Hide this prompt? It stays on Walrus but will not show here.'))return;await api('/api/prompts',{method:'POST',body:JSON.stringify({action:'hide',id:p.id})});renderPrompted()};
   row.append(use,hide);c.append(row);
   return c;
@@ -517,15 +520,15 @@ function renderPrompted(){
     box.replaceChildren();
     if(!ok){box.append(el('p','muted',j.error||'Your prompt library is unavailable right now.'));return}
     if(j.status!=='ok'){box.append(el('p','muted',(REASON[j.reason]||'Your prompt library is unavailable right now')+'.'));return}
-    if(!j.items.length){box.append(el('p','muted','Nothing saved yet. Use Save to Keepsake on a Prompted page, or add one above.'));return}
+    if(!j.items.length){box.append(el('p','muted','Nothing saved yet. Paste a prompt above to start your library.'));return}
     j.items.forEach(p=>box.append(promptCard(p)));
   });
 }
 async function savePrompt(d,statusEl){
-  if(statusEl)statusEl.textContent='Saving...';
+  if(statusEl)statusEl.textContent='Saving and naming it...';
   const{ok,j}=await api('/api/prompts',{method:'POST',body:JSON.stringify({action:'save',...d})});
   if(!ok){if(statusEl)statusEl.textContent='';return{ok:false,error:j.error||'Could not save.'}}
-  if(statusEl)statusEl.textContent='Saved.';
+  if(statusEl)statusEl.textContent='Saved as #'+j.item.number+': '+j.item.title+'.';
   return{ok:true,item:j.item};
 }
 function renderFeedback(){
@@ -600,33 +603,13 @@ $('#t').addEventListener('input',e=>{e.target.style.height='auto';e.target.style
 });
 $('#msel').replaceChildren(...MODELS.map(m=>{const o=document.createElement('option');o.value=m.v;o.textContent=m.t;return o}));
 
-
-function b64decode(s){s=s.split('-').join('+').split('_').join('/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return new TextDecoder().decode(bytes);}
-function wireBookmarklet(){
-  const code="(function(){var cap=null,cw=null,step=0;try{cw=navigator.clipboard.writeText.bind(navigator.clipboard);navigator.clipboard.writeText=function(t){cap=String(t);return Promise.resolve();};}catch(e){}function onCopy(){try{var s=String(window.getSelection()||'');var a=document.activeElement;if(a&&typeof a.value==='string'&&typeof a.selectionStart==='number'){s=a.value.slice(a.selectionStart,a.selectionEnd)||s;}if(s&&!cap){cap=s;}}catch(e){}}document.addEventListener('copy',onCopy,true);function txt(e){return String(e.innerText||e.textContent||'').trim();}function deep(e,re){var c=e;while(c.children.length>0){var nx=null;for(var j=0;j<c.children.length;j++){if(re.test(txt(c.children[j]))){nx=c.children[j];break;}}if(!nx){break;}c=nx;}return c;}function find(re,max){var sels=['button,a,summary,[role=button]','div,span,p,li'];for(var k=0;k<sels.length;k++){var l=document.querySelectorAll(sels[k]);for(var i=0;i<l.length;i++){var t=txt(l[i]);if(t.length>0&&t.length<max&&re.test(t)){return deep(l[i],re);}}}return null;}function meta(){var og=document.querySelector('meta[property=\"og:title\"]');var h=document.querySelector('h1,h2');var au='';var a=document.querySelectorAll('a');for(var i=0;i<a.length;i++){var t=txt(a[i]);if(/^@[A-Za-z0-9_.-]{2,30}$/.test(t)){au=t;break;}}return{title:(og&&og.content)||(h&&txt(h))||document.title,author:au,url:location.href};}function pick(root){var best='',l=root.querySelectorAll('pre,code,div,p,span');for(var i=0;i<l.length;i++){var e=l[i],f='';try{f=getComputedStyle(e).fontFamily||'';}catch(x){}var t=txt(e);var mono=e.tagName==='PRE'||e.tagName==='CODE'||/mono|courier|consolas/i.test(f);if(mono&&t.length>30&&t.length>best.length&&e.children.length<3){best=t;}}return best;}function b64(o){var u=new TextEncoder().encode(JSON.stringify(o));var s='';for(var i=0;i<u.length;i++){s+=String.fromCharCode(u[i]);}return btoa(s).split('+').join('-').split('/').join('_').split('=').join('');}function finish(){if(cw){try{navigator.clipboard.writeText=cw;}catch(e){}}document.removeEventListener('copy',onCopy,true);var text=cap;if(!text){var anchor=find(/copy\\s*prompt/i,40)||find(/prompt\\(s\\)/i,70);var root=anchor;for(var i=0;i<7&&root&&root.parentElement;i++){root=root.parentElement;var b=pick(root);if(b){text=b;break;}}if(!text){text=pick(document.body);}}if(!text){alert('Keepsake could not find a prompt on this page. Open the prompts section, or tap copy prompts and paste it into Keepsake.');return;}var m=meta();var d={t:String(m.title||'').slice(0,120),u:/^https:/.test(m.url)?m.url.slice(0,300):'',a:m.author||'',x:text.slice(0,20000)};location.assign('__ORIGIN__/'+String.fromCharCode(35)+'save='+b64(d));}function go(){var cb=find(/copy\\s*prompt/i,40);if(!cb&&step===0){var tg=find(/prompt\\(s\\)/i,70);if(tg){tg.click();step=1;setTimeout(go,700);return;}}var rm=find(/^read\\s*more/i,20);if(rm){rm.click();}setTimeout(function(){var c2=find(/copy\\s*prompt/i,40);if(c2){c2.click();}setTimeout(finish,800);},rm?600:60);}go();})();";
-  const href='javascript:'+code.split('__ORIGIN__').join(location.origin);
-  const a=$('#pbm');if(a){a.href=href;a.addEventListener('click',e=>e.preventDefault());}
-  const cb=$('#pbm-copy');if(cb)cb.onclick=async()=>{try{await navigator.clipboard.writeText(href);cb.textContent='Copied. Paste it as a bookmark\'s address.'}catch(e){prompt('Copy this link and paste it as a bookmark\'s address:',href)}};
-}
-async function handleIncomingSave(){
-  const h=location.hash;
-  if(!h.startsWith('#save='))return;
-  history.replaceState(null,'',location.pathname+location.search);
-  let d;try{d=JSON.parse(b64decode(h.slice(6)))}catch(e){return}
-  setTab('prompted');
-  if(!user){show('auth');$('#auth-err').textContent='Log in first, then use Save to Keepsake again on the Prompted page.';return}
-  $('#padd-title-f').value=d.t||'';$('#padd-text').value=d.x||'';$('#padd-author').value=d.a||'';$('#padd-url').value=d.u||'';
-  const r=await savePrompt({title:d.t,text:d.x,author:d.a,url:d.u},$('#padd-status'));
-  if(r.ok){$('#padd-text').value='';$('#padd-title-f').value='';$('#padd-author').value='';$('#padd-url').value='';$('#padd-err').textContent='';renderPrompted()}
-  else $('#padd-err').textContent=r.error;
-}
 $('#padd-save').onclick=async()=>{
   $('#padd-err').textContent='';
   const text=$('#padd-text').value.trim();
   if(text.length<20){$('#padd-err').textContent='Paste the full prompt text (at least 20 characters).';return}
-  const r=await savePrompt({title:$('#padd-title-f').value,text,author:$('#padd-author').value,url:$('#padd-url').value,tags:$('#padd-tags').value},$('#padd-status'));
+  const r=await savePrompt({title:$('#padd-title-f').value,text},$('#padd-status'));
   if(!r.ok){$('#padd-err').textContent=r.error;return}
-  ['padd-title-f','padd-text','padd-author','padd-url','padd-tags'].forEach(id=>$('#'+id).value='');
+  ['padd-title-f','padd-text'].forEach(id=>$('#'+id).value='');
   renderPrompted();
 };
 $('#psearch-go').onclick=async()=>{
@@ -638,7 +621,6 @@ $('#psearch-go').onclick=async()=>{
   j.items.forEach(p=>box.append(promptCard(p)));
 };
 $('#psearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#psearch-go').click()}});
-wireBookmarklet();
 
 // Start
 (async()=>{
@@ -649,7 +631,6 @@ wireBookmarklet();
     show('app');setTab('chat');loadChat();
     if(tr.length){renderChat();refreshChatList()}else{welcome();refreshChatList()}
     api('/api/memory?warm=1');
-    await handleIncomingSave();
   }else{
     show('auth');
     if(p.get('login')==='failed')$('#auth-err').textContent='Login did not complete ('+(p.get('why')||'unknown')+'). Please try again.';
