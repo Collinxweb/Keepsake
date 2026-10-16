@@ -175,13 +175,8 @@ dialog select,dialog input{padding:9px;border:1px solid var(--line);border-radiu
         <div id="chat" aria-live="polite"></div>
         <div class="chips" id="chips"></div>
         <div class="composer">
-          <div class="src" role="group" aria-label="Prompt source">
-            <button type="button" data-s="own" aria-pressed="true">My own prompt</button>
-            <button type="button" data-s="prompted" aria-pressed="false">From Prompted</button>
-            <select class="field" id="msel" aria-label="Provider and model" style="flex:1 1 100%;width:100%"></select>
-            <input class="field" id="handle" placeholder="Author, e.g. @name" hidden>
-            <input class="field" id="link" placeholder="Link to the build on prmpted.com" hidden>
-          </div>
+          
+          <select class="field" id="msel" aria-label="Provider and model" style="flex:1 1 100%;width:100%"></select>
           <div class="row">
             <textarea id="t" rows="1" placeholder="Ask your agent..." aria-label="Message"></textarea>
             <button id="send" class="primary" style="flex:none">Send</button>
@@ -323,15 +318,11 @@ function saveChat(){const k=key();if(!k)return;try{localStorage.setItem(k,JSON.s
 function loadChat(){
   tr=[];hist=[];archive=[];const k=key();if(!k)return;
   try{const d=JSON.parse(localStorage.getItem(k)||'null');if(d){tr=d.tr||[];hist=d.hist||[];archive=d.archive||[]}}catch(e){}
+  tr=tr.filter(i=>i.role!=='promo');
   tr.forEach(i=>{if(i.role==='bot'&&i.text==='Thinking...')i.text='This reply was interrupted by a page refresh. Send it again.'});
   while(hist.length&&hist[hist.length-1].role==='user')hist.pop();
 }
 function drawItem(item){
-  if(item.role==='promo'){
-    const c=el('div','promo');c.append(el('b','','Prompted'),el('div','muted','Import a prompt from prmpted.com with its author and link.'));
-    const b=el('button','','Import a prompt');b.style.marginTop='6px';b.onclick=()=>{setSrc('prompted');$('#handle').focus()};
-    c.append(b);item.el=c;return c;
-  }
   const d=el('div','m '+(item.role==='me'?'me':'bot'),item.text||'');
   if(item.tags)d.appendChild(el('div','tags',item.tags));
   if(item.note)d.appendChild(el('div','tags',item.note));
@@ -343,7 +334,6 @@ function update(item){const old=item.el;if(!old)return;const d=drawItem(item);ol
 function renderChat(){const box=$('#chat');box.replaceChildren();tr.forEach(i=>box.appendChild(drawItem(i)));if(box.lastElementChild)box.lastElementChild.scrollIntoView({block:'end'})}
 function welcome(){
   push({role:'bot',text:user?'Welcome back, '+user.name+'. What would you like to remember, explore or work on today?':'Welcome to Keepsake. This is a demo with scripted replies, so no login or keys are needed. Turn on recording to see how consent works.'});
-  push({role:'promo'});
 }
 function refreshChatList(){
   const s=$('#chatlist');s.replaceChildren(new Option(archive.length?'Previous chats':'No previous chats',''));
@@ -385,7 +375,6 @@ function setConsent(v){consent=v;paint();add('bot',v?'Recording is on. New messa
 function toggleRec(){if(consent)setConsent(false);else $('#consent-dlg').showModal()}
 function openConnect(){if(!user){demo=false;show('auth');$('#auth-err').textContent='Sign in to connect your agent.';return}$('#agent-dlg').showModal()}
 function selProv(){return $('#msel').value.split('|')[0]}
-function setSrc(s){src=s;$$('.src button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s===s)));$('#handle').hidden=$('#link').hidden=s!=='prompted'}
 
 // Plain-language memory note under each reply. Only real server results are shown.
 function memNoteText(m){
@@ -433,11 +422,10 @@ async function send(){
   const isCmd=t.toLowerCase().includes('breakdown');
   let tag='';
   if(!isCmd){
-    const entry={text:t,source:src,author:src==='prompted'?$('#handle').value.trim():'',link:src==='prompted'?$('#link').value.trim():'',at:new Date().toISOString()};
+    const entry={text:t,source:'own',author:'',link:'',at:new Date().toISOString()};
     if(!user){if(consent){mem.push(entry);tag='saved on this device'}else tag='not saved'}
     else if(!consent){tag='not saved'}
     const parts=[];
-    if(src==='prompted')parts.push('From Prompted'+(entry.author?' · '+entry.author:''));
     if(tag)parts.push(tag);
     tag=parts.join(' · ');
   }
@@ -507,7 +495,7 @@ function promptCard(p){
   const d=el('div','',body);d.style.whiteSpace='pre-wrap';d.style.margin='4px 0';c.append(d);
   c.append(el('small','','Saved '+new Date(p.savedAt).toLocaleDateString()+' · say "build prompt '+p.number+'" in chat'));
   const row=el('div','row');row.style.marginTop='6px';
-  const use=el('button','','Use in chat');use.onclick=()=>{setTab('chat');setSrc('own');$('#t').value='build prompt '+p.number};
+  const use=el('button','','Use in chat');use.onclick=()=>{setTab('chat');$('#t').value='build prompt '+p.number};
   const hide=el('button','','Hide');hide.onclick=async()=>{if(!confirm('Hide this prompt? It stays on Walrus but will not show here.'))return;await api('/api/prompts',{method:'POST',body:JSON.stringify({action:'hide',id:p.id})});renderPrompted()};
   row.append(use,hide);c.append(row);
   return c;
@@ -564,7 +552,6 @@ $('#fb-send').onclick=async()=>{
 // Wiring
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 $$('[data-act]').forEach(b=>b.onclick=()=>b.dataset.act==='export'?exportData():wipe());
-$$('.src button').forEach(b=>b.onclick=()=>setSrc(b.dataset.s));
 $('#recpill').onclick=toggleRec;
 $('#pan-toggle').onclick=toggleRec;
 $('#allow').onclick=()=>{$('#consent-dlg').close();setConsent(true)};

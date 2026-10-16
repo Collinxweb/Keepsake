@@ -21,7 +21,7 @@ function failMessage(p,e){
   const st=e.status;
   if(st===402)return[502,p.id==='openrouter'?'Keepsake OpenRouter has no credits left right now. Try Keepsake Gemini.':'This provider reports no credits left.'];
   if(st===429)return[429,'This model has hit its usage limit for now. Try another model, or try again in a minute.'];
-  if(st===401||st===403)return[502,p.credentialMode==='user'?'Your '+p.name+' key was rejected. Reconnect it in Settings.':'This Keepsake provider is temporarily unavailable.'];
+  if(st===401||st===403)return[502,p.credentialMode==='user'?'Your '+p.name+' key was rejected. Reconnect it in Settings.':'Keepsake '+p.name+' rejected its key. The key needs checking in Vercel.'];
   return[502,'The selected model is temporarily unavailable. Try another model.'];
 }
 async function extract(p,key,model,text){
@@ -46,7 +46,7 @@ module.exports=async(req,res)=>{
   let key,model;
   if(p.credentialMode==='shared'){
     key=process.env[p.envVar];
-    if(!key)return res.status(503).json({error:'This Keepsake provider is temporarily unavailable.'});
+    if(!key)return res.status(503).json({error:'Keepsake '+p.name+' is not set up on this server yet. The site owner needs to add its key in Vercel.'});
     model=p.models.includes(body.model)?body.model:p.defaultModel;
   }else{
     const a=L.agent(req,s);

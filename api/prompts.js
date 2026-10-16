@@ -91,7 +91,7 @@ module.exports=async(req,res)=>{
     const id=String(b.id||'');
     if(!ID_RE.test(id))return res.status(400).json({error:'Unknown prompt.'});
     const w=await M.rememberNs(hns(s.sub),'ID: '+id+'\nHidden: '+new Date().toISOString());
-    if(w.status==='unavailable')return res.status(502).json({error:'Could not reach Walrus to hide this prompt. It is hidden on this device only.',reason:w.reason});
+    if(w.status==='unavailable')return res.status(502).json({error:'Could not reach Walrus to hide this prompt. Nothing was changed.',reason:w.reason});
     return res.json({ok:true,status:w.status});
   }
 
@@ -106,7 +106,7 @@ module.exports=async(req,res)=>{
   const item={id,number,title:oneLine(b.title,60)||title,savedAt:new Date().toISOString(),hash,text};
   const w=await M.rememberNs(pns(s.sub),pack(item));
   if(w.status==='rejected')return res.status(400).json({error:'This looks like it contains a key or token. Remove it and try again.'});
-  if(w.status==='unavailable')return res.status(502).json({error:'Could not reach Walrus right now. Your prompt is kept on this device and can be synced later.',reason:w.reason});
+  if(w.status==='unavailable')return res.status(502).json({error:'Could not save to Walrus right now. Nothing was saved. Your text is still in the box, so you can try again.',reason:w.reason});
   return res.json({ok:true,status:w.status,item});
 };
 module.exports.pack=pack;module.exports.unpack=unpack;
