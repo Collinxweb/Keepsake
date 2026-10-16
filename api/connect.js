@@ -1,4 +1,4 @@
-const L=require('./_lib');
+const L=require('../lib/_lib');
 module.exports=(req,res)=>{
   const s=L.session(req);if(!s)return res.status(401).json({error:'Log in first.'});
   if(req.method==='DELETE'){L.setC(res,'ks_a','',0);return res.json({ok:true})}

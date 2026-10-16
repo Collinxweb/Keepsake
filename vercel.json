@@ -1,16 +1,14 @@
 {
   "functions": {
-    "api/chat.js": {
-      "maxDuration": 60
-    },
-    "api/memory.js": {
-      "maxDuration": 15
-    },
-    "api/feedback.js": {
-      "maxDuration": 15
-    },
-    "api/prompts.js": {
-      "maxDuration": 30
-    }
-  }
+    "api/chat.js": { "maxDuration": 60 },
+    "api/memory.js": { "maxDuration": 15 },
+    "api/prompts.js": { "maxDuration": 30 },
+    "api/feedback.js": { "maxDuration": 15 },
+    "api/auth.js": { "maxDuration": 15 }
+  },
+  "rewrites": [
+    { "source": "/api/auth/google", "destination": "/api/auth?provider=google&action=start" },
+    { "source": "/api/auth/callback", "destination": "/api/auth?provider=google&action=callback" },
+    { "source": "/api/auth/:provider/:action", "destination": "/api/auth?provider=:provider&action=:action" }
+  ]
 }

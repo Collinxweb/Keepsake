@@ -1,4 +1,4 @@
-const L=require('./_lib');
+const L=require('../lib/_lib');
 const crypto=require('crypto');
 module.exports=(req,res)=>{
   res.setHeader('Cache-Control','no-store');

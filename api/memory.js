@@ -1,5 +1,5 @@
-const L=require('./_lib');
-const M=require('./_memory');
+const L=require('../lib/_lib');
+const M=require('../lib/_memory');
 module.exports=async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   // Health is public: it reports only a status code, never credentials.

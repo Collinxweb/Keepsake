@@ -1,7 +1,7 @@
 const crypto=require('crypto');
-const L=require('./_lib');
-const M=require('./_memory');
-const {P}=require('./_llm');
+const L=require('../lib/_lib');
+const M=require('../lib/_memory');
+const {P}=require('../lib/_llm');
 // Prompt library. Each prompt is one record in a per-account Walrus namespace that is separate from chat facts.
 // Hidden ids go in a second namespace, because Walrus cannot delete yet.
 const ID_RE=/^[a-f0-9]{12}$/;

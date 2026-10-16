@@ -1,4 +1,4 @@
-const L=require('./_lib');
+const L=require('../lib/_lib');
 // Public feedback stored as GitHub issues labelled "feedback". Reading is public; posting needs a login.
 const REPO=process.env.FEEDBACK_REPO||'Collinxweb/Keepsake';
 const BASE={Accept:'application/vnd.github+json','User-Agent':'keepsake','X-GitHub-Api-Version':'2022-11-28'};

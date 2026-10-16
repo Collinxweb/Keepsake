@@ -1,6 +1,6 @@
-const L=require('./_lib');
-const {P,SYSTEM,EXTRACT}=require('./_llm');
-const M=require('./_memory');
+const L=require('../lib/_lib');
+const {P,SYSTEM,EXTRACT}=require('../lib/_llm');
+const M=require('../lib/_memory');
 const PR=require('./prompts');
 // Requests to delete or forget are answered here, without calling the model, so the reply can't claim a deletion.
 const DELETE_RE=/\b(delete|forget|erase|clear|wipe|remove)\b[\s\S]*\b(memor\w*|everything|all (my|the) (facts|data|info\w*)|what you know)\b|forget (me|everything)/i;
